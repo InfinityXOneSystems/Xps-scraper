@@ -1,0 +1,116 @@
+version: "3.9"
+
+# XPS Shadow Scraper - Local Development Stack
+# Usage: docker-compose up --build
+#
+# Services:
+#   backend   → http://localhost:3001
+#   frontend  → http://localhost:3000
+#   ollama    → http://localhost:11434  (optional local LLM)
+
+services:
+  # ─── Backend API ─────────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: xps-scraper-backend
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      FRONTEND_URL: http://localhost:3000
+      # LLM – point to Ollama or any OpenAI-compatible endpoint
+      LLM_API_URL: ${LLM_API_URL:-http://ollama:11434/v1}
+      LLM_API_KEY: ${LLM_API_KEY:-ollama}
+      LLM_MODEL: ${LLM_MODEL:-llama3.2}
+      # Auth (leave empty to allow all in development)
+      API_KEY: ${API_KEY:-}
+      JWT_SECRET: ${JWT_SECRET:-}
+      # Rate limiting
+      RATE_LIMIT_WINDOW_MS: ${RATE_LIMIT_WINDOW_MS:-900000}
+      RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-100}
+    depends_on:
+      ollama:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - xps-network
+
+  # ─── Frontend Chat UI ─────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: xps-scraper-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    environment:
+      VITE_API_URL: http://localhost:3001/api
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:80"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - xps-network
+
+  # ─── Ollama (Open-Source LLM) ────────────────────────────────────────────────
+  # Optional: comment out if using an external LLM provider
+  ollama:
+    image: ollama/ollama:latest
+    container_name: xps-ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    environment:
+      OLLAMA_HOST: "0.0.0.0"
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - xps-network
+    # GPU support (uncomment for NVIDIA):
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+  # ─── Ollama Model Puller (runs once) ─────────────────────────────────────────
+  ollama-pull:
+    image: ollama/ollama:latest
+    container_name: xps-ollama-pull
+    restart: "no"
+    depends_on:
+      ollama:
+        condition: service_healthy
+    entrypoint: ["ollama", "pull", "${LLM_MODEL:-llama3.2}"]
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    networks:
+      - xps-network
+
+volumes:
+  ollama-data:
+
+networks:
+  xps-network:
+    driver: bridge
