@@ -6,6 +6,7 @@ const NAV_ITEMS: { id: Tab; label: string; icon: string }[] = [
   { id: 'dashboard', label: 'Dashboard', icon: '🏠' },
   { id: 'chat', label: 'Chat Agent', icon: '💬' },
   { id: 'scrape', label: 'Scraper', icon: '🔍' },
+  { id: 'keys', label: 'API Keys', icon: '🔑' },
   { id: 'crm', label: 'CRM', icon: '👥' },
   { id: 'leads', label: 'Leads', icon: '🎯' },
   { id: 'email', label: 'Email', icon: '📧' },
