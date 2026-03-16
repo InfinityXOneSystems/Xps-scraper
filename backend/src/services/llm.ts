@@ -16,6 +16,8 @@ export interface AgentAction {
   response: string;
 }
 
+const GROQ_BASE_URL = 'https://api.groq.com/openai/v1';
+
 const DEFAULT_SYSTEM_PROMPT = `You are an XPS Shadow Scraper AI agent — a super shadow REST API agent with key harvester technology. You help users extract data from websites, analyze scraped content, identify API keys and secrets in web content, and answer questions about web data.
 
 When a user asks you to scrape a URL, respond with a JSON block like:
@@ -36,38 +38,72 @@ For general questions:
 Always respond with valid JSON matching one of the above shapes.`;
 
 export class LLMService {
-  private client: OpenAI | null = null;
+  private clients: Map<string, OpenAI> = new Map();
 
-  private getClient(): OpenAI {
-    if (!this.client) {
-      if (!config.LLM_API_KEY) {
-        throw new Error('LLM_API_KEY is not configured');
+  private getClient(provider: 'openai' | 'groq' | 'ollama' = 'openai'): OpenAI {
+    if (!this.clients.has(provider)) {
+      let apiKey: string;
+      let baseURL: string;
+
+      if (provider === 'groq') {
+        apiKey = process.env['GROQ_API_KEY'] ?? config.LLM_API_KEY;
+        baseURL = GROQ_BASE_URL;
+      } else if (provider === 'ollama') {
+        apiKey = 'ollama';
+        baseURL = process.env['OLLAMA_URL'] ?? 'http://localhost:11434/v1';
+      } else {
+        apiKey = config.LLM_API_KEY;
+        baseURL = config.LLM_API_URL;
       }
-      this.client = new OpenAI({
-        apiKey: config.LLM_API_KEY,
-        baseURL: config.LLM_API_URL,
-      });
+
+      if (!apiKey) throw new Error(`LLM_API_KEY not configured for provider: ${provider}`);
+
+      this.clients.set(
+        provider,
+        new OpenAI({ apiKey, baseURL }),
+      );
     }
-    return this.client;
+    return this.clients.get(provider)!;
   }
 
-  async chat(messages: ChatMessage[], systemPrompt?: string): Promise<string> {
-    if (!config.LLM_API_KEY) {
+  private resolveProvider(model?: string): 'groq' | 'ollama' | 'openai' {
+    if (!model) return 'openai';
+    const groqModels = ['llama-3.3-70b-versatile', 'mixtral-8x7b-32768', 'gemma2-9b-it', 'llama3-70b-8192'];
+    const ollamaModels = ['llama3.2', 'mistral', 'codellama', 'llama2'];
+    if (groqModels.some((m) => model.includes(m))) return 'groq';
+    if (ollamaModels.some((m) => model.includes(m))) return 'ollama';
+    return 'openai';
+  }
+
+  async chat(
+    messages: ChatMessage[],
+    systemPrompt?: string,
+    options?: { model?: string; temperature?: number; maxTokens?: number },
+  ): Promise<string> {
+    const model = options?.model ?? config.LLM_MODEL;
+    const provider = this.resolveProvider(model);
+
+    const groqKey = process.env['GROQ_API_KEY'];
+    const hasKey = config.LLM_API_KEY && config.LLM_API_KEY !== 'ollama';
+    const hasGroqKey = !!groqKey;
+
+    if (!hasKey && !hasGroqKey) {
       return this.mockResponse(messages);
     }
 
     try {
-      const client = this.getClient();
+      const activeProvider = hasGroqKey && provider === 'groq' ? 'groq' : (hasKey ? 'openai' : 'groq');
+      const client = this.getClient(activeProvider);
       const systemMessage: ChatMessage = {
         role: 'system',
         content: systemPrompt ?? DEFAULT_SYSTEM_PROMPT,
       };
 
       const completion = await client.chat.completions.create({
-        model: config.LLM_MODEL,
+        model,
         messages: [systemMessage, ...messages],
-        temperature: 0.3,
-        max_tokens: 1024,
+        temperature: options?.temperature ?? 0.3,
+        max_tokens: options?.maxTokens ?? 1024,
       });
 
       return completion.choices[0]?.message?.content ?? '';
@@ -81,7 +117,10 @@ export class LLMService {
     userMessage: string,
     context?: ScrapeResult,
   ): Promise<AgentAction> {
-    if (!config.LLM_API_KEY) {
+    const hasKey = config.LLM_API_KEY && config.LLM_API_KEY !== 'ollama';
+    const hasGroqKey = !!process.env['GROQ_API_KEY'];
+
+    if (!hasKey && !hasGroqKey) {
       return this.mockInterpret(userMessage);
     }
 
@@ -106,7 +145,6 @@ export class LLMService {
 
   private parseAgentAction(raw: string, fallbackMessage: string): AgentAction {
     try {
-      // Extract JSON from the response (may be wrapped in markdown code fences)
       const jsonMatch = raw.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         const parsed = JSON.parse(jsonMatch[0]) as Partial<AgentAction>;
