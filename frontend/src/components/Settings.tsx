@@ -11,7 +11,8 @@ type Section =
   | 'onboarding'
   | 'prompts'
   | 'templates'
-  | 'bootstrap';
+  | 'bootstrap'
+  | 'integrations';
 
 const SECTIONS: Array<{ id: Section; label: string; icon: string }> = [
   { id: 'api-keys', label: 'API Keys & Auth', icon: '🔐' },
@@ -25,6 +26,7 @@ const SECTIONS: Array<{ id: Section; label: string; icon: string }> = [
   { id: 'prompts', label: 'Prompt Library', icon: '💬' },
   { id: 'templates', label: 'Template Library', icon: '📋' },
   { id: 'bootstrap', label: 'Bootstrap Library', icon: '⚡' },
+  { id: 'integrations', label: 'Integrations', icon: '⚡' },
 ];
 
 function useLocalSetting(key: string, defaultVal: string) {
@@ -70,6 +72,18 @@ export default function Settings() {
   const [supabaseUrl, setSupabaseUrl] = useLocalSetting('xps_supabase_url', '');
   const [supabaseKey, setSupabaseKey] = useLocalSetting('xps_supabase_key', '');
   const [apiKey, setApiKey] = useLocalSetting('xps_api_key', '');
+
+  // Integration credentials
+  const [twilioSid, setTwilioSid] = useLocalSetting('xps_twilio_sid', '');
+  const [twilioToken, setTwilioToken] = useLocalSetting('xps_twilio_token', '');
+  const [twilioPhone, setTwilioPhone] = useLocalSetting('xps_twilio_phone', '');
+  const [stripeKey, setStripeKey] = useLocalSetting('xps_stripe_key', '');
+  const [squareToken, setSquareToken] = useLocalSetting('xps_square_token', '');
+  const [hubspotToken, setHubspotToken] = useLocalSetting('xps_hubspot_token', '');
+  const [xtremeAiUrl, setXtremeAiUrl] = useLocalSetting('xps_xtreme_ai_url', '');
+  const [xtremeAiKey, setXtremeAiKey] = useLocalSetting('xps_xtreme_ai_key', '');
+  const [githubAppId, setGithubAppId] = useLocalSetting('xps_github_app_id', '');
+  const [githubWebhookSecret, setGithubWebhookSecret] = useLocalSetting('xps_github_webhook_secret', '');
 
   // LLM
   const [llmProvider, setLlmProvider] = useLocalSetting('xps_llm_provider', 'groq');
@@ -346,6 +360,80 @@ export default function Settings() {
                       <code className="text-[#aaa]">{step}</code>
                     </div>
                   ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeSection === 'integrations' && (
+            <div className="space-y-4">
+              {/* Twilio */}
+              <div className="bg-[#111] border border-[#2a2a2a] rounded-xl px-5 py-2">
+                <div className="text-xs font-semibold text-[#d4af37] uppercase tracking-wider py-3 border-b border-[#1a1a1a] mb-2 flex items-center gap-2">
+                  <span>📱</span> Twilio SMS
+                </div>
+                <FieldRow label="Account SID" hint="Starts with AC...">
+                  <TextInput value={twilioSid} onChange={setTwilioSid} placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
+                </FieldRow>
+                <FieldRow label="Auth Token" hint="From Twilio console">
+                  <TextInput value={twilioToken} onChange={setTwilioToken} placeholder="auth_token..." type="password" />
+                </FieldRow>
+                <FieldRow label="Phone Number" hint="Your Twilio number (E.164 format)">
+                  <TextInput value={twilioPhone} onChange={setTwilioPhone} placeholder="+1XXXXXXXXXX" />
+                </FieldRow>
+              </div>
+              {/* Stripe */}
+              <div className="bg-[#111] border border-[#2a2a2a] rounded-xl px-5 py-2">
+                <div className="text-xs font-semibold text-[#d4af37] uppercase tracking-wider py-3 border-b border-[#1a1a1a] mb-2 flex items-center gap-2">
+                  <span>💳</span> Stripe Payments
+                </div>
+                <FieldRow label="Secret Key" hint="sk_live_... or sk_test_...">
+                  <TextInput value={stripeKey} onChange={setStripeKey} placeholder="sk_test_..." type="password" />
+                </FieldRow>
+              </div>
+              {/* Square */}
+              <div className="bg-[#111] border border-[#2a2a2a] rounded-xl px-5 py-2">
+                <div className="text-xs font-semibold text-[#d4af37] uppercase tracking-wider py-3 border-b border-[#1a1a1a] mb-2 flex items-center gap-2">
+                  <span>⬜</span> Square Payments
+                </div>
+                <FieldRow label="Access Token" hint="From Square Developer Dashboard">
+                  <TextInput value={squareToken} onChange={setSquareToken} placeholder="EAAAlxxx..." type="password" />
+                </FieldRow>
+              </div>
+              {/* HubSpot */}
+              <div className="bg-[#111] border border-[#2a2a2a] rounded-xl px-5 py-2">
+                <div className="text-xs font-semibold text-[#d4af37] uppercase tracking-wider py-3 border-b border-[#1a1a1a] mb-2 flex items-center gap-2">
+                  <span>🟠</span> HubSpot
+                </div>
+                <FieldRow label="Private App Token" hint="pat-na1-... from HubSpot developer settings">
+                  <TextInput value={hubspotToken} onChange={setHubspotToken} placeholder="pat-na1-..." type="password" />
+                </FieldRow>
+              </div>
+              {/* Xtreme AI */}
+              <div className="bg-[#111] border border-[#2a2a2a] rounded-xl px-5 py-2">
+                <div className="text-xs font-semibold text-[#d4af37] uppercase tracking-wider py-3 border-b border-[#1a1a1a] mb-2 flex items-center gap-2">
+                  <span>🤖</span> Xtreme AI System
+                </div>
+                <FieldRow label="API URL">
+                  <TextInput value={xtremeAiUrl} onChange={setXtremeAiUrl} placeholder="https://xtreme-ai.example.com/api" />
+                </FieldRow>
+                <FieldRow label="API Key">
+                  <TextInput value={xtremeAiKey} onChange={setXtremeAiKey} placeholder="xtreme_api_key..." type="password" />
+                </FieldRow>
+              </div>
+              {/* GitHub App */}
+              <div className="bg-[#111] border border-[#2a2a2a] rounded-xl px-5 py-2">
+                <div className="text-xs font-semibold text-[#d4af37] uppercase tracking-wider py-3 border-b border-[#1a1a1a] mb-2 flex items-center gap-2">
+                  <span>🐙</span> GitHub App (XPS Orchestrator)
+                </div>
+                <FieldRow label="App ID" hint="Numeric ID from GitHub App settings">
+                  <TextInput value={githubAppId} onChange={setGithubAppId} placeholder="123456" />
+                </FieldRow>
+                <FieldRow label="Webhook Secret">
+                  <TextInput value={githubWebhookSecret} onChange={setGithubWebhookSecret} placeholder="webhook_secret..." type="password" />
+                </FieldRow>
+                <div className="py-3">
+                  <a href="https://github.com/settings/apps" target="_blank" rel="noopener noreferrer" className="text-xs text-[#d4af37] hover:underline">Manage GitHub Apps ↗</a>
                 </div>
               </div>
             </div>

@@ -10,7 +10,7 @@ import {
   useDroppable,
 } from '@dnd-kit/core';
 import { useDraggable } from '@dnd-kit/core';
-import { getLeads, createLead, updateLead, deleteLead } from '../api';
+import { getLeads, createLead, updateLead, deleteLead, syncContactToHubSpot, sendSms } from '../api';
 import type { Lead, LeadStage } from '../types';
 
 const STAGES: LeadStage[] = ['New', 'Contacted', 'Qualified', 'Proposal', 'Won', 'Lost'];
@@ -33,7 +33,7 @@ function ScoreBar({ score }: { score: number }) {
   );
 }
 
-function LeadCard({ lead, onEdit }: { lead: Lead; onEdit: (l: Lead) => void }) {
+function LeadCard({ lead, onEdit, onHubSpotSync, onSms }: { lead: Lead; onEdit: (l: Lead) => void; onHubSpotSync: (l: Lead) => void; onSms: (l: Lead) => void }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: lead.id });
 
   const style = transform
@@ -70,6 +70,22 @@ function LeadCard({ lead, onEdit }: { lead: Lead; onEdit: (l: Lead) => void }) {
       {lead.value !== undefined && (
         <div className="mt-1.5 text-xs text-[#d4af37] font-medium">${lead.value.toLocaleString()}</div>
       )}
+      <div className="mt-2 flex gap-1">
+        <button
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={() => onHubSpotSync(lead)}
+          className="text-[10px] px-1.5 py-0.5 rounded bg-[#0a0a0a] border border-[#2a2a2a] text-[#888] hover:text-orange-400 hover:border-orange-800 transition-all"
+          title="Sync to HubSpot"
+        >🟠 HubSpot</button>
+        {lead.phone && (
+          <button
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => onSms(lead)}
+            className="text-[10px] px-1.5 py-0.5 rounded bg-[#0a0a0a] border border-[#2a2a2a] text-[#888] hover:text-blue-400 hover:border-blue-800 transition-all"
+            title="Send SMS"
+          >📱 SMS</button>
+        )}
+      </div>
     </div>
   );
 }
@@ -78,10 +94,14 @@ function KanbanColumn({
   stage,
   leads,
   onEdit,
+  onHubSpotSync,
+  onSms,
 }: {
   stage: LeadStage;
   leads: Lead[];
   onEdit: (l: Lead) => void;
+  onHubSpotSync: (l: Lead) => void;
+  onSms: (l: Lead) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage });
 
@@ -104,7 +124,7 @@ function KanbanColumn({
         }`}
       >
         {leads.map((l) => (
-          <LeadCard key={l.id} lead={l} onEdit={onEdit} />
+          <LeadCard key={l.id} lead={l} onEdit={onEdit} onHubSpotSync={onHubSpotSync} onSms={onSms} />
         ))}
       </div>
     </div>
@@ -120,6 +140,39 @@ export default function Leads() {
   const [loading, setLoading] = useState(true);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
+  const [smsTarget, setSmsTarget] = useState<Lead | null>(null);
+  const [smsMessage, setSmsMessage] = useState('');
+  const [smsSending, setSmsSending] = useState(false);
+
+  function showToast(msg: string, ok: boolean) {
+    setToast({ msg, ok });
+    setTimeout(() => setToast(null), 3000);
+  }
+
+  async function handleHubSpotSync(lead: Lead) {
+    try {
+      await syncContactToHubSpot({ name: lead.name, email: lead.email, company: lead.company, phone: lead.phone });
+      showToast(`${lead.name} synced to HubSpot`, true);
+    } catch {
+      showToast('HubSpot sync failed', false);
+    }
+  }
+
+  async function handleSendSms() {
+    if (!smsTarget?.phone || !smsMessage) return;
+    setSmsSending(true);
+    try {
+      await sendSms(smsTarget.phone, smsMessage);
+      showToast(`SMS sent to ${smsTarget.name}`, true);
+      setSmsTarget(null);
+      setSmsMessage('');
+    } catch {
+      showToast('SMS send failed', false);
+    } finally {
+      setSmsSending(false);
+    }
+  }
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
   const [form, setForm] = useState({ ...EMPTY_LEAD });
   const [saving, setSaving] = useState(false);
@@ -201,7 +254,11 @@ export default function Leads() {
 
   return (
     <div className="h-full flex flex-col bg-[#0a0a0a]">
-      {/* Header */}
+      {toast && (
+        <div className={`fixed bottom-4 right-4 z-50 px-4 py-2 rounded-lg text-sm font-medium shadow-lg ${toast.ok ? 'bg-green-900/80 text-green-300 border border-green-700' : 'bg-red-900/80 text-red-300 border border-red-700'}`}>
+          {toast.ok ? '✓' : '✗'} {toast.msg}
+        </div>
+      )}
       <div className="px-6 py-4 border-b border-[#2a2a2a] flex items-center justify-between flex-shrink-0">
         <div>
           <h2 className="text-xl font-bold gold-text">Leads Pipeline</h2>
@@ -220,6 +277,8 @@ export default function Leads() {
                 stage={stage}
                 leads={leads.filter((l) => l.stage === stage)}
                 onEdit={openEdit}
+                onHubSpotSync={handleHubSpotSync}
+                onSms={(l) => { setSmsTarget(l); setSmsMessage(''); }}
               />
             ))}
           </div>
@@ -301,6 +360,29 @@ export default function Leads() {
               <button onClick={() => setShowForm(false)} className="px-4 py-2 text-sm text-[#888] hover:text-white bg-[#1a1a1a] rounded-lg border border-[#2a2a2a]">Cancel</button>
               <button onClick={handleSave} disabled={saving || !form.name || !form.email} className="gold-button px-4 py-2 rounded-lg text-sm disabled:opacity-50">
                 {saving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SMS Modal */}
+      {smsTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setSmsTarget(null)}>
+          <div className="bg-[#111] border border-[#2a2a2a] rounded-xl shadow-2xl p-6 w-full max-w-sm mx-4 gold-border" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-bold gold-text mb-1">Send SMS</h3>
+            <p className="text-xs text-[#555] mb-4">To: {smsTarget.name} ({smsTarget.phone})</p>
+            <textarea
+              value={smsMessage}
+              onChange={(e) => setSmsMessage(e.target.value)}
+              rows={4}
+              placeholder="Type your message…"
+              className="w-full bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg px-3 py-2 text-sm text-white placeholder-[#555] focus:outline-none focus:border-[#d4af37] resize-none"
+            />
+            <div className="flex gap-3 mt-4 justify-end">
+              <button onClick={() => setSmsTarget(null)} className="px-4 py-2 text-sm text-[#888] hover:text-white bg-[#1a1a1a] rounded-lg border border-[#2a2a2a]">Cancel</button>
+              <button onClick={handleSendSms} disabled={smsSending || !smsMessage} className="gold-button px-4 py-2 rounded-lg text-sm disabled:opacity-50">
+                {smsSending ? 'Sending…' : '📱 Send SMS'}
               </button>
             </div>
           </div>

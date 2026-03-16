@@ -58,7 +58,9 @@ export type Tab =
   | 'connectors'
   | 'payments'
   | 'sms'
-  | 'hubspot';
+  | 'hubspot'
+  | 'appbuilder'
+  | 'distillation';
 
 export interface ScrapeOptions {
   extractImages?: boolean;

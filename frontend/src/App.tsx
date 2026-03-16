@@ -15,6 +15,8 @@ import Connectors from './components/Connectors';
 import Payments from './components/Payments';
 import SMS from './components/SMS';
 import HubSpotPage from './components/HubSpot';
+import AppBuilder from './components/AppBuilder';
+import Distillation from './components/Distillation';
 import type { Tab } from './types';
 
 export default function App() {
@@ -37,6 +39,8 @@ export default function App() {
       {activeTab === 'payments' && <Payments />}
       {activeTab === 'sms' && <SMS />}
       {activeTab === 'hubspot' && <HubSpotPage />}
+      {activeTab === 'appbuilder' && <AppBuilder />}
+      {activeTab === 'distillation' && <Distillation />}
     </Layout>
   );
 }

@@ -16,6 +16,8 @@ const NAV_ITEMS: { id: Tab; label: string; icon: string }[] = [
   { id: 'payments', label: 'Payments', icon: '💰' },
   { id: 'sms', label: 'SMS', icon: '📱' },
   { id: 'hubspot', label: 'HubSpot', icon: '🟠' },
+  { id: 'appbuilder', label: 'App Builder', icon: '🏗️' },
+  { id: 'distillation', label: 'Distillation', icon: '⚗️' },
   { id: 'settings', label: 'Settings', icon: '⚙️' },
 ];
 
