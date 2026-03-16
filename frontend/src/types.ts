@@ -54,7 +54,11 @@ export type Tab =
   | 'repos'
   | 'sandbox'
   | 'settings'
-  | 'keys';
+  | 'keys'
+  | 'connectors'
+  | 'payments'
+  | 'sms'
+  | 'hubspot';
 
 export interface ScrapeOptions {
   extractImages?: boolean;
@@ -162,3 +166,79 @@ export interface GitHubRepo {
   };
   topics?: string[];
 }
+
+// Payments
+export interface StripePaymentIntent {
+  id: string;
+  amount: number;
+  currency: string;
+  status: string;
+  created: number;
+  description?: string;
+}
+
+export interface SquarePayment {
+  id: string;
+  amount_money: { amount: number; currency: string };
+  status: string;
+  created_at: string;
+  note?: string;
+}
+
+// SMS
+export interface SmsMessage {
+  to: string;
+  message: string;
+}
+
+// HubSpot
+export interface HubSpotContact {
+  id: string;
+  properties: {
+    email?: string;
+    firstname?: string;
+    lastname?: string;
+    phone?: string;
+    company?: string;
+  };
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface HubSpotDeal {
+  id: string;
+  properties: {
+    dealname?: string;
+    amount?: string;
+    dealstage?: string;
+    closedate?: string;
+  };
+}
+
+// App Connectors
+export interface AppConnection {
+  id: string;
+  name: string;
+  type: string;
+  status: 'connected' | 'disconnected' | 'error';
+  testedAt?: string;
+  createdAt: string;
+}
+
+export type AppConnectorType =
+  | 'github'
+  | 'vercel'
+  | 'railway'
+  | 'netlify'
+  | 'supabase'
+  | 'openai'
+  | 'anthropic'
+  | 'google'
+  | 'stripe'
+  | 'hubspot'
+  | 'twilio'
+  | 'slack'
+  | 'notion'
+  | 'airtable'
+  | 'zapier'
+  | 'custom';

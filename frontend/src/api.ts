@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { ChatMessage, ScrapeResult, HarvestedKey, AgentChatResponse, ScrapeOptions, Contact, Lead, EmailTemplate, Campaign, Workflow } from './types';
+import type { ChatMessage, ScrapeResult, HarvestedKey, AgentChatResponse, ScrapeOptions, Contact, Lead, EmailTemplate, Campaign, Workflow, AppConnection } from './types';
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || '/api',
@@ -136,6 +136,99 @@ export async function runWorkflow(workflow: Workflow): Promise<{ runId: string; 
 }
 export async function getWorkflowStatus(runId: string): Promise<{ status: string; log: string[] }> {
   const { data } = await api.get(`/orchestrator/status/${runId}`);
+  return data;
+}
+
+// SMS
+export async function sendSms(to: string, message: string): Promise<{ success: boolean; sid?: string }> {
+  const { data } = await api.post('/sms/send', { to, message });
+  return data;
+}
+
+export async function sendBulkSms(recipients: string[], message: string): Promise<{ sent: number; failed: number }> {
+  const { data } = await api.post('/sms/bulk', { recipients, message });
+  return data;
+}
+
+export async function getSmsStatus(): Promise<{ configured: boolean; from: string | null }> {
+  const { data } = await api.get('/sms/status');
+  return data;
+}
+
+// Payments
+export async function getPaymentsStatus(): Promise<{ stripe: { configured: boolean; publishableKey: string | null }; square: { configured: boolean } }> {
+  const { data } = await api.get('/payments/status');
+  return data;
+}
+
+export async function createStripePaymentIntent(amount: number, currency: string, description?: string): Promise<Record<string, unknown>> {
+  const { data } = await api.post('/payments/stripe/payment-intent', { amount, currency, description });
+  return data;
+}
+
+export async function getStripePaymentIntents(): Promise<{ data: unknown[] }> {
+  const { data } = await api.get('/payments/stripe/payment-intents');
+  return data;
+}
+
+export async function getStripeCustomers(): Promise<{ data: unknown[] }> {
+  const { data } = await api.get('/payments/stripe/customers');
+  return data;
+}
+
+export async function getSquareLocations(): Promise<{ locations: unknown[] }> {
+  const { data } = await api.get('/payments/square/locations');
+  return data;
+}
+
+// HubSpot
+export async function getHubSpotStatus(): Promise<{ configured: boolean; portalId: string | null }> {
+  const { data } = await api.get('/hubspot/status');
+  return data;
+}
+
+export async function getHubSpotContacts(limit?: number): Promise<{ results: unknown[]; total: number }> {
+  const { data } = await api.get(`/hubspot/contacts?limit=${limit ?? 20}`);
+  return data;
+}
+
+export async function createHubSpotContact(contact: { email: string; firstname?: string; lastname?: string; phone?: string; company?: string }): Promise<unknown> {
+  const { data } = await api.post('/hubspot/contacts', contact);
+  return data;
+}
+
+export async function syncContactToHubSpot(contact: { name: string; email: string; company?: string; phone?: string }): Promise<{ action: string; data: unknown }> {
+  const { data } = await api.post('/hubspot/sync-contact', contact);
+  return data;
+}
+
+export async function getHubSpotDeals(): Promise<{ results: unknown[] }> {
+  const { data } = await api.get('/hubspot/deals');
+  return data;
+}
+
+// Connectors
+export async function getConnections(): Promise<{ connections: AppConnection[]; count: number }> {
+  const { data } = await api.get<{ connections: AppConnection[]; count: number }>('/connectors');
+  return data;
+}
+
+export async function addConnection(conn: { name: string; type: string; credentials: Record<string, string> }): Promise<AppConnection> {
+  const { data } = await api.post<AppConnection>('/connectors', conn);
+  return data;
+}
+
+export async function testConnection(id: string): Promise<{ status: string; testedAt: string }> {
+  const { data } = await api.post(`/connectors/${id}/test`);
+  return data;
+}
+
+export async function deleteConnection(id: string): Promise<void> {
+  await api.delete(`/connectors/${id}`);
+}
+
+export async function getGitHubOAuthUrl(): Promise<{ url: string }> {
+  const { data } = await api.get('/connectors/oauth/github');
   return data;
 }
 
