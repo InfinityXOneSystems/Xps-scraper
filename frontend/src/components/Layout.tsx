@@ -24,6 +24,7 @@ interface LayoutProps {
 export default function Layout({ activeTab, onTabChange, children }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [healthy, setHealthy] = useState<boolean | null>(null);
+  // Initial unread count — reset to 0 when user clicks the bell
   const [notifications, setNotifications] = useState(3);
   const [darkMode] = useState(true);
 

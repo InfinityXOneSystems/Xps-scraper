@@ -42,6 +42,8 @@ on:
 jobs:
   scrape:
     runs-on: ${{ github.event.inputs.runner_type || 'ubuntu-latest' }}
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout

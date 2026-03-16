@@ -20,13 +20,13 @@ function makeId() {
 function getNextSuggestion(nodes: WorkflowNode[]): WorkflowNodeType | null {
   if (nodes.length === 0) return 'trigger';
   const last = nodes[nodes.length - 1];
-  const map: Partial<Record<WorkflowNodeType, WorkflowNodeType>> = {
+  const map: Partial<Record<WorkflowNodeType, WorkflowNodeType | null>> = {
     trigger: 'scrape',
     scrape: 'filter',
     filter: 'transform',
     transform: 'save_crm',
     save_crm: 'send_email',
-    send_email: null as unknown as WorkflowNodeType,
+    send_email: null,
   };
   return map[last.type] ?? null;
 }

@@ -8,11 +8,9 @@ interface CommitResult {
 
 export default function Sandbox() {
   const [token, setToken] = useState(() => localStorage.getItem('xps_github_token') ?? '');
-  const [_owner, _setOwner] = useState('');
   const [newRepoName, setNewRepoName] = useState('');
   const [newRepoDesc, setNewRepoDesc] = useState('');
   const [newRepoPrivate, setNewRepoPrivate] = useState(false);
-  const [_repoUrl, _setRepoUrl] = useState('');
   const [prTitle, setPrTitle] = useState('');
   const [prBody, setPrBody] = useState('');
   const [prBranch, setPrBranch] = useState('');

@@ -32,6 +32,8 @@ export interface WorkflowDefinition {
 
 const workflowRuns = new Map<string, WorkflowRun>();
 
+const NODE_EXECUTION_DELAY_MS = 50;
+
 const NodeSchema = z.object({
   id: z.string(),
   type: z.enum(['trigger', 'scrape', 'filter', 'transform', 'save_crm', 'send_email', 'llm', 'webhook']),
@@ -78,7 +80,7 @@ router.post(
             const ts = new Date().toISOString();
             nodeLog.push(`[${ts}] Executing node: ${node.type} — ${node.label}`);
             // Simulate processing time per node type
-            await new Promise<void>((r) => setTimeout(r, 50));
+            await new Promise<void>((r) => setTimeout(r, NODE_EXECUTION_DELAY_MS));
           }
           const completedRun = workflowRuns.get(runId);
           if (completedRun) {
