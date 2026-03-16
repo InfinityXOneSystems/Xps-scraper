@@ -1,0 +1,112 @@
+name: Live Scraper
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: 'URL(s) to scrape (comma-separated)'
+        required: true
+        type: string
+      location:
+        description: 'Geographic location filter (e.g. "San Francisco, CA")'
+        required: false
+        type: string
+        default: ''
+      subject:
+        description: 'Subject or topic of interest (e.g. "AI startups")'
+        required: false
+        type: string
+        default: ''
+      extract_keys:
+        description: 'Harvest API keys from scraped content'
+        required: false
+        type: boolean
+        default: false
+      runner_type:
+        description: 'Runner to use'
+        required: false
+        type: choice
+        options:
+          - ubuntu-latest
+          - self-hosted
+        default: ubuntu-latest
+      cron_schedule:
+        description: 'Override cron schedule (leave blank to use default)'
+        required: false
+        type: string
+        default: ''
+
+  schedule:
+    - cron: '0 6 * * *'
+
+jobs:
+  scrape:
+    runs-on: ${{ github.event.inputs.runner_type || 'ubuntu-latest' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend dependencies
+        run: cd backend && npm ci
+
+      - name: Build backend
+        run: cd backend && npm run build
+
+      - name: Run scraper
+        env:
+          SCRAPE_URL: ${{ github.event.inputs.url || 'https://example.com' }}
+          SCRAPE_LOCATION: ${{ github.event.inputs.location || '' }}
+          SCRAPE_SUBJECT: ${{ github.event.inputs.subject || '' }}
+          EXTRACT_KEYS: ${{ github.event.inputs.extract_keys || 'false' }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY || '' }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY || '' }}
+          LLM_MODEL: ${{ secrets.LLM_MODEL || 'llama-3.3-70b-versatile' }}
+          API_KEY: ${{ secrets.API_KEY || '' }}
+        run: |
+          node -e "
+          const { scraperService } = require('./backend/dist/services/scraper');
+          const urls = process.env.SCRAPE_URL.split(',').map(u => u.trim()).filter(Boolean);
+          const fs = require('fs');
+          const results = [];
+          (async () => {
+            for (const url of urls) {
+              try {
+                console.log('Scraping:', url);
+                const result = await scraperService.scrapeUrl(url);
+                results.push({ url, success: true, title: result.title, links: result.links.length, text: result.text.substring(0, 500) });
+                console.log('Done:', url, '— Title:', result.title);
+              } catch (err) {
+                results.push({ url, success: false, error: err.message });
+                console.error('Failed:', url, err.message);
+              }
+            }
+            const output = {
+              runAt: new Date().toISOString(),
+              location: process.env.SCRAPE_LOCATION,
+              subject: process.env.SCRAPE_SUBJECT,
+              results,
+              totalUrls: urls.length,
+              successful: results.filter(r => r.success).length,
+            };
+            fs.writeFileSync('scrape-results.json', JSON.stringify(output, null, 2));
+            console.log('Results saved to scrape-results.json');
+            console.log(JSON.stringify(output, null, 2));
+          })().catch(err => { console.error(err); process.exit(1); });
+          "
+
+      - name: Upload results as artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: scrape-results-${{ github.run_id }}
+          path: scrape-results.json
+          retention-days: 30
+          if-no-files-found: warn

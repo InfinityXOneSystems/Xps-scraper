@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { ChatMessage, ScrapeResult, HarvestedKey, AgentChatResponse, ScrapeOptions } from './types';
+import type { ChatMessage, ScrapeResult, HarvestedKey, AgentChatResponse, ScrapeOptions, Contact, Lead, EmailTemplate, Campaign, Workflow } from './types';
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || '/api',
@@ -45,9 +45,7 @@ export async function harvestKeys(
   url?: string,
   content?: string,
 ): Promise<{ keys: HarvestedKey[]; count: number }> {
-  if (!url && !content) {
-    throw new Error('Either url or content must be provided');
-  }
+  if (!url && !content) throw new Error('Either url or content must be provided');
   const { data } = await api.post('/keys/harvest', { url, content });
   return data;
 }
@@ -76,6 +74,68 @@ export async function healthCheck(): Promise<{ status: string }> {
       ? import.meta.env.VITE_API_URL.replace(/\/api$/, '')
       : '',
   });
+  return data;
+}
+
+// CRM
+export async function getContacts(): Promise<Contact[]> {
+  const { data } = await api.get<{ contacts: Contact[] }>('/crm/contacts');
+  return data.contacts;
+}
+export async function createContact(c: Omit<Contact, 'id' | 'createdAt' | 'updatedAt'>): Promise<Contact> {
+  const { data } = await api.post<Contact>('/crm/contacts', c);
+  return data;
+}
+export async function updateContact(id: string, c: Partial<Contact>): Promise<Contact> {
+  const { data } = await api.put<Contact>(`/crm/contacts/${id}`, c);
+  return data;
+}
+export async function deleteContact(id: string): Promise<void> {
+  await api.delete(`/crm/contacts/${id}`);
+}
+
+// Leads
+export async function getLeads(): Promise<Lead[]> {
+  const { data } = await api.get<{ leads: Lead[] }>('/leads');
+  return data.leads;
+}
+export async function createLead(l: Omit<Lead, 'id' | 'createdAt' | 'updatedAt'>): Promise<Lead> {
+  const { data } = await api.post<Lead>('/leads', l);
+  return data;
+}
+export async function updateLead(id: string, l: Partial<Lead>): Promise<Lead> {
+  const { data } = await api.put<Lead>(`/leads/${id}`, l);
+  return data;
+}
+export async function deleteLead(id: string): Promise<void> {
+  await api.delete(`/leads/${id}`);
+}
+
+// Email
+export async function getEmailTemplates(): Promise<EmailTemplate[]> {
+  const { data } = await api.get<{ templates: EmailTemplate[] }>('/email/templates');
+  return data.templates;
+}
+export async function createEmailTemplate(t: Omit<EmailTemplate, 'id' | 'createdAt' | 'updatedAt'>): Promise<EmailTemplate> {
+  const { data } = await api.post<EmailTemplate>('/email/templates', t);
+  return data;
+}
+export async function getCampaigns(): Promise<Campaign[]> {
+  const { data } = await api.get<{ campaigns: Campaign[] }>('/email/campaigns');
+  return data.campaigns;
+}
+export async function createCampaign(c: { name: string; templateId: string; recipients: string[] }): Promise<Campaign> {
+  const { data } = await api.post<Campaign>('/email/campaigns', c);
+  return data;
+}
+
+// Orchestrator
+export async function runWorkflow(workflow: Workflow): Promise<{ runId: string; status: string }> {
+  const { data } = await api.post('/orchestrator/run', workflow);
+  return data;
+}
+export async function getWorkflowStatus(runId: string): Promise<{ status: string; log: string[] }> {
+  const { data } = await api.get(`/orchestrator/status/${runId}`);
   return data;
 }
 
