@@ -106,7 +106,7 @@ export default function Settings() {
 
   function addPrompt() {
     if (!newPromptName || !newPromptContent) return;
-    const updated = [...prompts, { id: Math.random().toString(36).slice(2), name: newPromptName, content: newPromptContent }];
+    const updated = [...prompts, { id: crypto.randomUUID(), name: newPromptName, content: newPromptContent }];
     setPromptsState(updated);
     localStorage.setItem('xps_prompts', JSON.stringify(updated));
     setNewPromptName('');

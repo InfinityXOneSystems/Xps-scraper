@@ -106,7 +106,7 @@ export default function Sandbox() {
         sha = existing.sha;
       }
 
-      const content = btoa(unescape(encodeURIComponent(fileContent)));
+      const content = btoa(Array.from(new TextEncoder().encode(fileContent)).map(b => String.fromCharCode(b)).join(''));
       const res = await fetch(`https://api.github.com/repos/${targetRepo}/contents/${fileName}`, {
         method: 'PUT',
         headers: getHeaders(),

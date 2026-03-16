@@ -32,7 +32,7 @@ export interface WorkflowDefinition {
 
 const workflowRuns = new Map<string, WorkflowRun>();
 
-const NODE_EXECUTION_DELAY_MS = 50;
+const NODE_SIMULATION_DELAY_MS = 50; // simulated processing delay per node
 
 const NodeSchema = z.object({
   id: z.string(),
@@ -80,7 +80,7 @@ router.post(
             const ts = new Date().toISOString();
             nodeLog.push(`[${ts}] Executing node: ${node.type} — ${node.label}`);
             // Simulate processing time per node type
-            await new Promise<void>((r) => setTimeout(r, NODE_EXECUTION_DELAY_MS));
+            await new Promise<void>((r) => setTimeout(r, NODE_SIMULATION_DELAY_MS));
           }
           const completedRun = workflowRuns.get(runId);
           if (completedRun) {

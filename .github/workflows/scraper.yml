@@ -72,37 +72,7 @@ jobs:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY || '' }}
           LLM_MODEL: ${{ secrets.LLM_MODEL || 'llama-3.3-70b-versatile' }}
           API_KEY: ${{ secrets.API_KEY || '' }}
-        run: |
-          node -e "
-          const { scraperService } = require('./backend/dist/services/scraper');
-          const urls = process.env.SCRAPE_URL.split(',').map(u => u.trim()).filter(Boolean);
-          const fs = require('fs');
-          const results = [];
-          (async () => {
-            for (const url of urls) {
-              try {
-                console.log('Scraping:', url);
-                const result = await scraperService.scrapeUrl(url);
-                results.push({ url, success: true, title: result.title, links: result.links.length, text: result.text.substring(0, 500) });
-                console.log('Done:', url, '— Title:', result.title);
-              } catch (err) {
-                results.push({ url, success: false, error: err.message });
-                console.error('Failed:', url, err.message);
-              }
-            }
-            const output = {
-              runAt: new Date().toISOString(),
-              location: process.env.SCRAPE_LOCATION,
-              subject: process.env.SCRAPE_SUBJECT,
-              results,
-              totalUrls: urls.length,
-              successful: results.filter(r => r.success).length,
-            };
-            fs.writeFileSync('scrape-results.json', JSON.stringify(output, null, 2));
-            console.log('Results saved to scrape-results.json');
-            console.log(JSON.stringify(output, null, 2));
-          })().catch(err => { console.error(err); process.exit(1); });
-          "
+        run: node scripts/run-scraper.js
 
       - name: Upload results as artifact
         uses: actions/upload-artifact@v4

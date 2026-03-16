@@ -14,7 +14,7 @@ const NODE_TYPES: Array<{ type: WorkflowNodeType; label: string; icon: string; c
 ];
 
 function makeId() {
-  return Math.random().toString(36).slice(2);
+  return crypto.randomUUID();
 }
 
 function getNextSuggestion(nodes: WorkflowNode[]): WorkflowNodeType | null {
