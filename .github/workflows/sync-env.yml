@@ -1,0 +1,115 @@
+name: Sync Environment from XPS Intelligence Repos
+
+# Syncs environment variables from sibling XPS repos into this repo's secrets.
+# Runs nightly or can be triggered manually.
+# Requires these GitHub Secrets to be set in this repo:
+#   SYNC_PAT  – a GitHub Personal Access Token with repo scope on all XPS repos
+#   RAILWAY_TOKEN – for pushing updated env vars to Railway
+
+on:
+  schedule:
+    # Run daily at 02:00 UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (log changes but do not apply)'
+        required: false
+        default: 'false'
+        type: boolean
+
+jobs:
+  sync-env:
+    name: Sync XPS Intelligence Environment
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      GH_TOKEN: ${{ secrets.SYNC_PAT }}
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install -g @railway/cli dotenv-cli
+
+      - name: Fetch XPS Intelligence System env
+        id: fetch-xps-intelligence
+        run: |
+          # Pull the .env.example from xps-intelligence-system repo to discover variable names
+          # Actual values come from GitHub Secrets set in this repo
+          echo "Syncing XPS Intelligence System variables..."
+          echo "XPS_INTELLIGENCE_API_URL=${{ secrets.XPS_INTELLIGENCE_API_URL }}" >> sync.env
+          echo "XPS_INTELLIGENCE_API_KEY=${{ secrets.XPS_INTELLIGENCE_API_KEY }}" >> sync.env
+        continue-on-error: true
+
+      - name: Fetch XPS Lead Intelligence env
+        id: fetch-xps-lead
+        run: |
+          echo "Syncing XPS Lead Intelligence variables..."
+          echo "XPS_LEAD_INTELLIGENCE_URL=${{ secrets.XPS_LEAD_INTELLIGENCE_URL }}" >> sync.env
+          echo "XPS_LEAD_INTELLIGENCE_KEY=${{ secrets.XPS_LEAD_INTELLIGENCE_KEY }}" >> sync.env
+        continue-on-error: true
+
+      - name: Fetch XPS Intelligence Frontend env
+        id: fetch-xps-frontend
+        run: |
+          echo "Syncing XPS Intelligence Frontend variables..."
+          echo "XPS_FRONTEND_URL=${{ secrets.XPS_FRONTEND_URL }}" >> sync.env
+        continue-on-error: true
+
+      - name: Apply to Railway (backend service)
+        if: ${{ github.event.inputs.dry_run != 'true' && env.RAILWAY_TOKEN != '' }}
+        run: |
+          echo "Applying synced variables to Railway backend service..."
+          while IFS= read -r line; do
+            key=$(echo "$line" | cut -d= -f1)
+            value=$(echo "$line" | cut -d= -f2-)
+            if [ -n "$key" ] && [ -n "$value" ]; then
+              railway variables set "$key=$value" --service backend
+              echo "  ✓ Set $key"
+            fi
+          done < sync.env
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        continue-on-error: true
+
+      - name: Apply to Railway (frontend service)
+        if: ${{ github.event.inputs.dry_run != 'true' && env.RAILWAY_TOKEN != '' }}
+        run: |
+          echo "Applying synced variables to Railway frontend service..."
+          while IFS= read -r line; do
+            key=$(echo "$line" | cut -d= -f1)
+            value=$(echo "$line" | cut -d= -f2-)
+            if [ -n "$key" ] && [ -n "$value" ] && [[ "$key" == VITE_* || "$key" == XPS_FRONTEND* ]]; then
+              railway variables set "$key=$value" --service frontend
+              echo "  ✓ Set $key"
+            fi
+          done < sync.env
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        continue-on-error: true
+
+      - name: Cleanup
+        if: always()
+        run: rm -f sync.env
+
+      - name: Post Sync Summary
+        run: |
+          echo "## 🔄 XPS Env Sync Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Repo | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| xps-intelligence-system | ${{ steps.fetch-xps-intelligence.outcome }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| xps-lead-intelligence | ${{ steps.fetch-xps-lead.outcome }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| xps-intelligence-frontend | ${{ steps.fetch-xps-frontend.outcome }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            echo "⚠️ **Dry run** – no changes were applied." >> $GITHUB_STEP_SUMMARY
+          fi
