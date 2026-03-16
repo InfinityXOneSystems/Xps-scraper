@@ -1,0 +1,27 @@
+{
+  "name": "xps-scraper",
+  "version": "1.0.0",
+  "description": "> **Super Shadow REST API Agent** with Key Harvester Technology — purpose-built for intelligent web scraping with an AI chat interface, auto-deployed on Railway.",
+  "main": "index.js",
+  "scripts": {
+    "test": "playwright test",
+    "test:e2e": "playwright test",
+    "backend:dev": "cd backend && npm run dev",
+    "frontend:dev": "cd frontend && npm run dev"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/InfinityXOneSystems/Xps-scraper.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/InfinityXOneSystems/Xps-scraper/issues"
+  },
+  "homepage": "https://github.com/InfinityXOneSystems/Xps-scraper#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.58.2"
+  }
+}

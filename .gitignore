@@ -59,5 +59,8 @@ temp/
 # Docker
 .dockerignore
 
-# Railway
-.railway/
+# Playwright
+test-results/
+playwright-report/
+tests/e2e/screenshots/
+
