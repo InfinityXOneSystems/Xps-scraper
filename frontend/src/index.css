@@ -5,46 +5,102 @@
 /* ── Base ── */
 :root {
   color-scheme: dark;
+  --gold: #d4af37;
+  --gold-light: #ffd700;
+  --gold-dark: #b8860b;
+  --bg-primary: #0a0a0a;
+  --bg-secondary: #111111;
+  --bg-card: #1a1a1a;
+  --border: #2a2a2a;
+  --text-primary: #ffffff;
+  --text-secondary: #a0a0a0;
 }
 
 html,
 body,
 #root {
   height: 100%;
-  background-color: #0f1117;
-  color: #e6edf3;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+}
+
+/* ── Gold animations ── */
+@keyframes goldShimmer {
+  0% { background-position: 200% center; }
+  100% { background-position: -200% center; }
+}
+
+@keyframes goldPulse {
+  0%, 100% { opacity: 0.8; }
+  50% { opacity: 1; }
+}
+
+@keyframes borderGlow {
+  0%, 100% { border-color: var(--gold); box-shadow: 0 0 5px rgba(212,175,55,0.3); }
+  50% { border-color: var(--gold-light); box-shadow: 0 0 20px rgba(255,215,0,0.5); }
+}
+
+@keyframes goldRotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.gold-text {
+  background: linear-gradient(90deg, #d4af37, #ffd700, #fffacd, #ffd700, #b8860b);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: goldShimmer 4s linear infinite;
+}
+
+.gold-border {
+  border: 1px solid var(--gold);
+  animation: borderGlow 2s ease-in-out infinite;
+}
+
+.gold-card {
+  background: linear-gradient(135deg, rgba(212,175,55,0.08) 0%, rgba(26,26,26,1) 100%);
+  border: 1px solid rgba(212,175,55,0.4);
+  animation: borderGlow 3s ease-in-out infinite;
+}
+
+.gold-button {
+  background: linear-gradient(135deg, #d4af37, #ffd700, #b8860b);
+  background-size: 200% auto;
+  color: #000;
+  font-weight: 600;
+  transition: background-position 0.3s ease;
+}
+
+.gold-button:hover {
+  background-position: right center;
 }
 
 /* ── Scrollbar ── */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #161b22;
+  background: #111111;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #30363d;
+  background: #333;
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #484f58;
+  background: #555;
 }
 
 /* ── Chat animations ── */
 @keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .message-enter {
@@ -54,14 +110,14 @@ body,
 /* ── Typing indicator dots ── */
 @keyframes bounce {
   0%, 60%, 100% { transform: translateY(0); }
-  30%            { transform: translateY(-6px); }
+  30% { transform: translateY(-6px); }
 }
 
 .typing-dot {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background-color: #58a6ff;
+  background-color: var(--gold);
   display: inline-block;
   animation: bounce 1.4s infinite ease-in-out;
 }
@@ -72,8 +128,8 @@ body,
 
 /* ── Code blocks inside Markdown ── */
 .prose pre {
-  background-color: #161b22 !important;
-  border: 1px solid #30363d;
+  background-color: #111111 !important;
+  border: 1px solid #2a2a2a;
   border-radius: 6px;
   padding: 1rem;
   overflow-x: auto;
@@ -81,7 +137,7 @@ body,
 }
 
 .prose code {
-  background-color: #161b22;
+  background-color: #1a1a1a;
   color: #f0883e;
   padding: 2px 5px;
   border-radius: 4px;
@@ -90,24 +146,13 @@ body,
 
 .prose pre code {
   background: transparent;
-  color: #e6edf3;
+  color: #f0f0f0;
   padding: 0;
 }
 
-.prose a {
-  color: #58a6ff;
-  text-decoration: underline;
-}
-
-.prose p {
-  margin-top: 0.5rem;
-  margin-bottom: 0.5rem;
-}
-
-.prose ul,
-.prose ol {
-  padding-left: 1.5rem;
-}
+.prose a { color: #58a6ff; text-decoration: underline; }
+.prose p { margin-top: 0.5rem; margin-bottom: 0.5rem; }
+.prose ul, .prose ol { padding-left: 1.5rem; }
 
 .prose table {
   width: 100%;
@@ -115,22 +160,30 @@ body,
   font-size: 0.875rem;
 }
 
-.prose th,
-.prose td {
-  border: 1px solid #30363d;
+.prose th, .prose td {
+  border: 1px solid #2a2a2a;
   padding: 6px 10px;
   text-align: left;
 }
 
-.prose th {
-  background-color: #1c2333;
+.prose th { background-color: #1a1a1a; }
+
+/* ── Kanban ── */
+.kanban-col {
+  min-height: 200px;
+  transition: background-color 0.2s;
+}
+
+.kanban-col.drag-over {
+  background-color: rgba(212,175,55,0.05);
+  border-color: var(--gold);
 }
 
 /* ── Confidence bar ── */
 .confidence-bar {
   height: 4px;
   border-radius: 2px;
-  background-color: #30363d;
+  background-color: #2a2a2a;
   overflow: hidden;
 }
 
@@ -139,3 +192,22 @@ body,
   border-radius: 2px;
   transition: width 0.4s ease;
 }
+
+/* ── Layout transitions ── */
+.sidebar-transition {
+  transition: width 0.2s ease;
+}
+
+/* ── Workflow canvas ── */
+.workflow-canvas {
+  background-image: 
+    radial-gradient(circle, rgba(212,175,55,0.15) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* ── Status badges ── */
+.badge-lead { background: rgba(59,130,246,0.2); color: #60a5fa; border: 1px solid rgba(59,130,246,0.3); }
+.badge-prospect { background: rgba(168,85,247,0.2); color: #c084fc; border: 1px solid rgba(168,85,247,0.3); }
+.badge-customer { background: rgba(34,197,94,0.2); color: #4ade80; border: 1px solid rgba(34,197,94,0.3); }
+.badge-inactive { background: rgba(107,114,128,0.2); color: #9ca3af; border: 1px solid rgba(107,114,128,0.3); }
+

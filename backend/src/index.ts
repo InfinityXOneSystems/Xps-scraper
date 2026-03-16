@@ -4,7 +4,7 @@ import cors from 'cors';
 import { config } from './config';
 import { rateLimiter } from './middleware/rateLimiter';
 import { authMiddleware } from './middleware/auth';
-import { scrapeRouter, agentRouter, keysRouter } from './routes';
+import { scrapeRouter, agentRouter, keysRouter, crmRouter, leadsRouter, emailRouter, orchestratorRouter } from './routes';
 
 const app = express();
 
@@ -36,6 +36,10 @@ app.get('/health', (_req: Request, res: Response) => {
 app.use('/api/scrape', authMiddleware, scrapeRouter);
 app.use('/api/agent', authMiddleware, agentRouter);
 app.use('/api/keys', authMiddleware, keysRouter);
+app.use('/api/crm', authMiddleware, crmRouter);
+app.use('/api/leads', authMiddleware, leadsRouter);
+app.use('/api/email', authMiddleware, emailRouter);
+app.use('/api/orchestrator', authMiddleware, orchestratorRouter);
 
 // ── 404 handler ───────────────────────────────────────────────────────────────
 app.use((_req: Request, res: Response) => {

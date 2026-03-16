@@ -1,0 +1,33 @@
+{
+  "name": "XPS Shadow Scraper",
+  "short_name": "XPS Shadow",
+  "description": "Enterprise-grade AI web scraping, CRM, and lead intelligence platform",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#d4af37",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🕷️</text></svg>",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "productivity", "utilities"],
+  "shortcuts": [
+    {
+      "name": "Chat Agent",
+      "short_name": "Chat",
+      "url": "./?tab=chat",
+      "description": "Open AI chat agent"
+    },
+    {
+      "name": "Scraper",
+      "short_name": "Scrape",
+      "url": "./?tab=scrape",
+      "description": "Open web scraper"
+    }
+  ]
+}

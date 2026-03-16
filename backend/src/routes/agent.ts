@@ -122,4 +122,52 @@ router.post(
   },
 );
 
+// POST /agent/shadow — headless background scraping agent
+router.post(
+  '/shadow',
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { url, location, subject, extractKeys } = req.body as {
+        url?: string;
+        location?: string;
+        subject?: string;
+        extractKeys?: boolean;
+      };
+
+      if (!url) {
+        res.status(400).json({ error: 'url is required' });
+        return;
+      }
+
+      let scrapeResult;
+      try {
+        scrapeResult = await scraperService.scrapeUrl(url);
+      } catch (scrapeErr) {
+        res.status(502).json({ error: 'Scrape failed', details: String(scrapeErr) });
+        return;
+      }
+
+      const summary = await llmService.chat([
+        {
+          role: 'user',
+          content: `Analyze this scraped content from ${url}${location ? ` (location: ${location})` : ''}${subject ? ` (subject: ${subject})` : ''}.
+Title: ${scrapeResult.title}
+Text: ${scrapeResult.text.slice(0, 1000)}
+Provide a brief structured summary.`,
+        },
+      ]);
+
+      res.json({
+        url,
+        scrapeResult,
+        summary,
+        extractedKeys: extractKeys ? [] : undefined,
+        processedAt: new Date().toISOString(),
+      });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
 export { router as agentRouter };
