@@ -6,12 +6,19 @@ const NAV_ITEMS: { id: Tab; label: string; icon: string }[] = [
   { id: 'dashboard', label: 'Dashboard', icon: '🏠' },
   { id: 'chat', label: 'Chat Agent', icon: '💬' },
   { id: 'scrape', label: 'Scraper', icon: '🔍' },
+  { id: 'keys', label: 'API Keys', icon: '🔑' },
   { id: 'crm', label: 'CRM', icon: '👥' },
   { id: 'leads', label: 'Leads', icon: '🎯' },
   { id: 'email', label: 'Email', icon: '📧' },
   { id: 'workflows', label: 'Workflows', icon: '🔄' },
   { id: 'repos', label: 'GitHub Repos', icon: '🐙' },
   { id: 'sandbox', label: 'Sandbox', icon: '🧪' },
+  { id: 'connectors', label: 'Connectors', icon: '🔌' },
+  { id: 'payments', label: 'Payments', icon: '💰' },
+  { id: 'sms', label: 'SMS', icon: '📱' },
+  { id: 'hubspot', label: 'HubSpot', icon: '🟠' },
+  { id: 'appbuilder', label: 'App Builder', icon: '🏗️' },
+  { id: 'distillation', label: 'Distillation', icon: '⚗️' },
   { id: 'settings', label: 'Settings', icon: '⚙️' },
 ];
 
@@ -24,9 +31,13 @@ interface LayoutProps {
 export default function Layout({ activeTab, onTabChange, children }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [healthy, setHealthy] = useState<boolean | null>(null);
-  // Initial unread count — reset to 0 when user clicks the bell
   const [notifications, setNotifications] = useState(3);
-  const [darkMode] = useState(true);
+  const [isDark, setIsDark] = useState(() => localStorage.getItem('xps_theme') !== 'light');
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', isDark);
+    localStorage.setItem('xps_theme', isDark ? 'dark' : 'light');
+  }, [isDark]);
 
   const checkHealth = useCallback(async () => {
     try {
@@ -46,7 +57,7 @@ export default function Layout({ activeTab, onTabChange, children }: LayoutProps
   const currentNav = NAV_ITEMS.find((n) => n.id === activeTab);
 
   return (
-    <div className={`flex h-screen overflow-hidden ${darkMode ? 'dark' : ''} bg-[#0a0a0a] text-white`}>
+    <div className={`flex h-screen overflow-hidden bg-[#0a0a0a] text-white`}>
       {/* ── Left Sidebar ── */}
       <aside
         className={`flex flex-col bg-[#111111] border-r border-[#2a2a2a] sidebar-transition flex-shrink-0 z-20 ${
@@ -121,6 +132,13 @@ export default function Layout({ activeTab, onTabChange, children }: LayoutProps
             </div>
 
             <button
+              onClick={() => setIsDark(!isDark)}
+              className="p-2 text-[#888] hover:text-[#ffd700] hover:bg-[#1a1a1a] rounded-lg transition-all"
+              title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+            >
+              {isDark ? '☀️' : '🌙'}
+            </button>
+            <button
               onClick={() => onTabChange('settings')}
               className="p-2 text-[#888] hover:text-[#ffd700] hover:bg-[#1a1a1a] rounded-lg transition-all"
               title="Settings"
@@ -153,9 +171,10 @@ export default function Layout({ activeTab, onTabChange, children }: LayoutProps
         </button>
         <button
           className="p-2.5 text-[#666] hover:text-[#ffd700] hover:bg-[#1a1a1a] rounded-lg transition-all"
-          title="Theme"
+          onClick={() => setIsDark(!isDark)}
+          title={isDark ? 'Light mode' : 'Dark mode'}
         >
-          🌙
+          {isDark ? '☀️' : '🌙'}
         </button>
         <button
           onClick={() => setNotifications(0)}

@@ -5,3 +5,7 @@ export { crmRouter } from './crm';
 export { leadsRouter } from './leads';
 export { emailRouter } from './email';
 export { orchestratorRouter } from './orchestrator';
+export { smsRouter } from './sms';
+export { paymentsRouter } from './payments';
+export { hubspotRouter } from './hubspot';
+export { connectorsRouter } from './connectors';

@@ -11,6 +11,12 @@ import Workflows from './components/Workflows';
 import GitHubRepos from './components/GitHubRepos';
 import Sandbox from './components/Sandbox';
 import Settings from './components/Settings';
+import Connectors from './components/Connectors';
+import Payments from './components/Payments';
+import SMS from './components/SMS';
+import HubSpotPage from './components/HubSpot';
+import AppBuilder from './components/AppBuilder';
+import Distillation from './components/Distillation';
 import type { Tab } from './types';
 
 export default function App() {
@@ -29,6 +35,12 @@ export default function App() {
       {activeTab === 'repos' && <GitHubRepos />}
       {activeTab === 'sandbox' && <Sandbox />}
       {activeTab === 'settings' && <Settings />}
+      {activeTab === 'connectors' && <Connectors />}
+      {activeTab === 'payments' && <Payments />}
+      {activeTab === 'sms' && <SMS />}
+      {activeTab === 'hubspot' && <HubSpotPage />}
+      {activeTab === 'appbuilder' && <AppBuilder />}
+      {activeTab === 'distillation' && <Distillation />}
     </Layout>
   );
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getContacts, createContact, updateContact, deleteContact } from '../api';
+import { getContacts, createContact, updateContact, deleteContact, syncContactToHubSpot } from '../api';
 import type { Contact, ContactStatus } from '../types';
 
 const STATUS_OPTIONS: ContactStatus[] = ['Lead', 'Prospect', 'Customer', 'Inactive'];
@@ -28,6 +28,25 @@ export default function CRM() {
   const [editing, setEditing] = useState<Contact | null>(null);
   const [form, setForm] = useState({ ...EMPTY });
   const [saving, setSaving] = useState(false);
+  const [syncingId, setSyncingId] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
+
+  function showToast(msg: string, ok: boolean) {
+    setToast({ msg, ok });
+    setTimeout(() => setToast(null), 3000);
+  }
+
+  async function handleHubSpotSync(c: Contact) {
+    setSyncingId(c.id);
+    try {
+      await syncContactToHubSpot({ name: c.name, email: c.email, company: c.company, phone: c.phone });
+      showToast(`${c.name} synced to HubSpot`, true);
+    } catch {
+      showToast('HubSpot sync failed', false);
+    } finally {
+      setSyncingId(null);
+    }
+  }
 
   async function load() {
     try {
@@ -94,6 +113,11 @@ export default function CRM() {
 
   return (
     <div className="h-full flex flex-col bg-[#0a0a0a]">
+      {toast && (
+        <div className={`fixed bottom-4 right-4 z-50 px-4 py-2 rounded-lg text-sm font-medium shadow-lg ${toast.ok ? 'bg-green-900/80 text-green-300 border border-green-700' : 'bg-red-900/80 text-red-300 border border-red-700'}`}>
+          {toast.ok ? '✓' : '✗'} {toast.msg}
+        </div>
+      )}
       {/* Header */}
       <div className="px-6 py-4 border-b border-[#2a2a2a] flex items-center justify-between flex-shrink-0">
         <div>
@@ -170,6 +194,9 @@ export default function CRM() {
                   <td className="py-3 px-3">
                     <div className="flex gap-2">
                       <button onClick={() => openEdit(c)} className="text-xs text-[#888] hover:text-[#ffd700] transition-colors">✏️</button>
+                      <button onClick={() => handleHubSpotSync(c)} disabled={syncingId === c.id} className="text-xs text-[#888] hover:text-orange-400 transition-colors disabled:opacity-50" title="Sync to HubSpot">
+                        {syncingId === c.id ? '⏳' : '🟠'}
+                      </button>
                       <button onClick={() => handleDelete(c.id)} className="text-xs text-[#888] hover:text-red-400 transition-colors">🗑️</button>
                     </div>
                   </td>

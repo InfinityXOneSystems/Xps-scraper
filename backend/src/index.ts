@@ -4,7 +4,11 @@ import cors from 'cors';
 import { config } from './config';
 import { rateLimiter } from './middleware/rateLimiter';
 import { authMiddleware } from './middleware/auth';
-import { scrapeRouter, agentRouter, keysRouter, crmRouter, leadsRouter, emailRouter, orchestratorRouter } from './routes';
+import {
+  scrapeRouter, agentRouter, keysRouter, crmRouter, leadsRouter,
+  emailRouter, orchestratorRouter, smsRouter, paymentsRouter,
+  hubspotRouter, connectorsRouter,
+} from './routes';
 
 const app = express();
 
@@ -40,6 +44,10 @@ app.use('/api/crm', authMiddleware, crmRouter);
 app.use('/api/leads', authMiddleware, leadsRouter);
 app.use('/api/email', authMiddleware, emailRouter);
 app.use('/api/orchestrator', authMiddleware, orchestratorRouter);
+app.use('/api/sms', authMiddleware, smsRouter);
+app.use('/api/payments', authMiddleware, paymentsRouter);
+app.use('/api/hubspot', authMiddleware, hubspotRouter);
+app.use('/api/connectors', authMiddleware, connectorsRouter);
 
 // ── 404 handler ───────────────────────────────────────────────────────────────
 app.use((_req: Request, res: Response) => {
