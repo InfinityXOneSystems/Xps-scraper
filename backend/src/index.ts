@@ -8,6 +8,7 @@ import {
   scrapeRouter, agentRouter, keysRouter, crmRouter, leadsRouter,
   emailRouter, orchestratorRouter, smsRouter, paymentsRouter,
   hubspotRouter, connectorsRouter,
+  crawlRouter, browserRouter, n8nRouter, cacheRouter,
 } from './routes';
 
 const app = express();
@@ -48,6 +49,10 @@ app.use('/api/sms', authMiddleware, smsRouter);
 app.use('/api/payments', authMiddleware, paymentsRouter);
 app.use('/api/hubspot', authMiddleware, hubspotRouter);
 app.use('/api/connectors', authMiddleware, connectorsRouter);
+app.use('/api/crawl', authMiddleware, crawlRouter);
+app.use('/api/browser', authMiddleware, browserRouter);
+app.use('/api/n8n', authMiddleware, n8nRouter);
+app.use('/api/cache', authMiddleware, cacheRouter);
 
 // ── 404 handler ───────────────────────────────────────────────────────────────
 app.use((_req: Request, res: Response) => {

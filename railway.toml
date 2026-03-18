@@ -1,5 +1,16 @@
 # Railway deployment configuration for XPS Shadow Scraper
 # Docs: https://docs.railway.app/reference/config-as-code
+#
+# Railway Add-ons (provision via Railway dashboard or CLI):
+#   railway add --plugin postgresql   → sets DATABASE_URL automatically
+#   railway add --plugin redis        → sets REDIS_URL automatically
+#
+# After provisioning, set the following environment variables in Railway:
+#   SUPABASE_URL, SUPABASE_ANON_KEY
+#   FIRECRAWL_API_KEY
+#   STEEL_API_KEY
+#   N8N_URL, N8N_API_KEY            (if using self-hosted n8n)
+#   BYTEBOT_URL, BYTEBOT_API_KEY    (if using self-hosted Bytebot)
 
 [build]
 builder = "nixpacks"
@@ -23,6 +34,8 @@ restartPolicyMaxRetries = 3
 [services.variables]
 PORT = "3001"
 NODE_ENV = "production"
+# DATABASE_URL is auto-injected by Railway Postgres add-on
+# REDIS_URL is auto-injected by Railway Redis add-on
 
 # ─── Frontend Service ─────────────────────────────────────────────────────────
 [[services]]

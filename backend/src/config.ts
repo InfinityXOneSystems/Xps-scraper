@@ -61,4 +61,33 @@ export const config = {
   VERCEL_TOKEN: process.env.VERCEL_TOKEN ?? '',
   RAILWAY_API_TOKEN: process.env.RAILWAY_API_TOKEN ?? '',
   NETLIFY_TOKEN: process.env.NETLIFY_TOKEN ?? '',
+
+  // Database (Railway Postgres / Supabase Postgres)
+  DATABASE_URL: process.env.DATABASE_URL ?? '',
+
+  // Redis (Railway Redis)
+  REDIS_URL: process.env.REDIS_URL ?? '',
+
+  // Supabase
+  SUPABASE_URL: process.env.SUPABASE_URL ?? '',
+  SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY ?? '',
+  SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ?? '',
+
+  // Firecrawl (https://firecrawl.dev)
+  FIRECRAWL_API_KEY: process.env.FIRECRAWL_API_KEY ?? '',
+
+  // Steel Browser (https://steel.dev)
+  STEEL_API_KEY: process.env.STEEL_API_KEY ?? '',
+
+  // Bytebot (https://bytebot.ai / self-hosted)
+  BYTEBOT_URL: process.env.BYTEBOT_URL ?? '',
+  BYTEBOT_API_KEY: process.env.BYTEBOT_API_KEY ?? '',
+
+  // n8n Workflow Automation (self-hosted or n8n.cloud)
+  N8N_URL: process.env.N8N_URL ?? '',
+  N8N_API_KEY: process.env.N8N_API_KEY ?? '',
+
+  // OpenAI (direct, in addition to LLM_API_KEY)
+  OPENAI_API_KEY: process.env.OPENAI_API_KEY ?? '',
+  ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ?? '',
 } as const;

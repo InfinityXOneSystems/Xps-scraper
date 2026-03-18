@@ -9,3 +9,7 @@ export { smsRouter } from './sms';
 export { paymentsRouter } from './payments';
 export { hubspotRouter } from './hubspot';
 export { connectorsRouter } from './connectors';
+export { crawlRouter } from './crawl';
+export { browserRouter } from './browser';
+export { n8nRouter } from './n8n';
+export { cacheRouter } from './cache';

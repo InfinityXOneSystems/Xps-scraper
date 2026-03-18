@@ -6,9 +6,104 @@ version: "3.9"
 # Services:
 #   backend   → http://localhost:3001
 #   frontend  → http://localhost:3000
+#   postgres  → localhost:5432
+#   redis     → localhost:6379
+#   n8n       → http://localhost:5678
 #   ollama    → http://localhost:11434  (optional local LLM)
 
 services:
+  # ─── PostgreSQL Database ──────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: xps-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-xps}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-xpspassword}
+      POSTGRES_DB: ${POSTGRES_DB:-xps_scraper}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-xps}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - xps-network
+
+  # ─── Redis Cache & Queue ──────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: xps-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - xps-network
+
+  # ─── n8n Workflow Automation ──────────────────────────────────────────────────
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: xps-n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      N8N_HOST: ${N8N_HOST:-localhost}
+      N8N_PORT: 5678
+      N8N_PROTOCOL: http
+      WEBHOOK_URL: ${N8N_WEBHOOK_URL:-http://localhost:5678}
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_HOST: postgres
+      DB_POSTGRESDB_PORT: 5432
+      DB_POSTGRESDB_DATABASE: ${POSTGRES_DB:-xps_scraper}
+      DB_POSTGRESDB_USER: ${POSTGRES_USER:-xps}
+      DB_POSTGRESDB_PASSWORD: ${POSTGRES_PASSWORD:-xpspassword}
+      N8N_BASIC_AUTH_ACTIVE: ${N8N_BASIC_AUTH_ACTIVE:-true}
+      N8N_BASIC_AUTH_USER: ${N8N_BASIC_AUTH_USER:-admin}
+      N8N_BASIC_AUTH_PASSWORD: ${N8N_BASIC_AUTH_PASSWORD:-n8npassword}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - n8n-data:/home/node/.n8n
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:5678/healthz || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - xps-network
+
+  # ─── Bytebot Browser Automation ───────────────────────────────────────────────
+  bytebot:
+    image: bytebot/bytebot:latest
+    container_name: xps-bytebot
+    restart: unless-stopped
+    ports:
+      - "7080:7080"
+    environment:
+      PORT: 7080
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:7080/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - xps-network
+
   # ─── Backend API ─────────────────────────────────────────────────────────────
   backend:
     build:
@@ -22,6 +117,16 @@ services:
       NODE_ENV: development
       PORT: 3001
       FRONTEND_URL: http://localhost:3000
+      # Database
+      DATABASE_URL: postgresql://${POSTGRES_USER:-xps}:${POSTGRES_PASSWORD:-xpspassword}@postgres:5432/${POSTGRES_DB:-xps_scraper}
+      # Redis
+      REDIS_URL: redis://redis:6379
+      # n8n
+      N8N_URL: http://n8n:5678
+      N8N_API_KEY: ${N8N_API_KEY:-}
+      # Bytebot
+      BYTEBOT_URL: http://bytebot:7080
+      BYTEBOT_API_KEY: ${BYTEBOT_API_KEY:-}
       # LLM – point to Ollama or any OpenAI-compatible endpoint
       LLM_API_URL: ${LLM_API_URL:-http://ollama:11434/v1}
       LLM_API_KEY: ${LLM_API_KEY:-ollama}
@@ -32,7 +137,18 @@ services:
       # Rate limiting
       RATE_LIMIT_WINDOW_MS: ${RATE_LIMIT_WINDOW_MS:-900000}
       RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-100}
+      # Supabase
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-}
+      # Firecrawl
+      FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY:-}
+      # Steel Browser
+      STEEL_API_KEY: ${STEEL_API_KEY:-}
     depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
       ollama:
         condition: service_healthy
     healthcheck:
@@ -109,6 +225,9 @@ services:
       - xps-network
 
 volumes:
+  postgres-data:
+  redis-data:
+  n8n-data:
   ollama-data:
 
 networks:
