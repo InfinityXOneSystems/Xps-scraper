@@ -64,3 +64,6 @@ test-results/
 playwright-report/
 tests/e2e/screenshots/
 
+# Template repositories (cloned by scripts/setup-integration.sh)
+templates/
+

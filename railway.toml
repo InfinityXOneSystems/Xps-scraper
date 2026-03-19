@@ -1,4 +1,4 @@
-# Railway deployment configuration for XPS Shadow Scraper
+# Railway deployment configuration for XPS Shadow Scraper + Integration Stack
 # Docs: https://docs.railway.app/reference/config-as-code
 #
 # Railway Add-ons (provision via Railway dashboard or CLI):
@@ -6,11 +6,18 @@
 #   railway add --plugin redis        → sets REDIS_URL automatically
 #
 # After provisioning, set the following environment variables in Railway:
-#   SUPABASE_URL, SUPABASE_ANON_KEY
-#   FIRECRAWL_API_KEY
-#   STEEL_API_KEY
-#   N8N_URL, N8N_API_KEY            (if using self-hosted n8n)
-#   BYTEBOT_URL, BYTEBOT_API_KEY    (if using self-hosted Bytebot)
+#   GROQ_API_KEY                    — Groq Cloud API key (primary LLM)
+#   FIRECRAWL_API_KEY               — Firecrawl API key
+#   SUPABASE_URL, SUPABASE_ANON_KEY — Supabase (optional)
+#   STEEL_API_KEY                   — Steel Browser (optional)
+#   GITHUB_APP_ID                   — XPS GitHub App ID
+#   GITHUB_APP_PRIVATE_KEY          — XPS GitHub App private key
+#   GITHUB_APP_INSTALLATION_ID      — XPS GitHub App installation ID
+#   API_KEY, JWT_SECRET             — Backend auth (production)
+#
+# Full-stack template services (deployed separately after cloning templates):
+#   open-claw         → Railway service from templates/open-claw
+#   open-deep-research → Railway service from templates/open-deep-research
 
 [build]
 builder = "nixpacks"
@@ -34,8 +41,14 @@ restartPolicyMaxRetries = 3
 [services.variables]
 PORT = "3001"
 NODE_ENV = "production"
+LLM_API_URL = "https://api.groq.com/openai/v1"
+LLM_MODEL = "llama-3.3-70b-versatile"
 # DATABASE_URL is auto-injected by Railway Postgres add-on
 # REDIS_URL is auto-injected by Railway Redis add-on
+# GROQ_API_KEY — set in Railway dashboard
+# FIRECRAWL_API_KEY — set in Railway dashboard
+# API_KEY — set in Railway dashboard (production auth)
+# JWT_SECRET — set in Railway dashboard
 
 # ─── Frontend Service ─────────────────────────────────────────────────────────
 [[services]]
