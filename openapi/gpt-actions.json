@@ -1,0 +1,799 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "XPS Shadow Scraper — Agent Actions API",
+    "description": "OpenAI GPT Actions schema for the XPS Shadow Scraper full-stack integration system. All operations are callable by LLMs with function-calling. Authenticate with an API key via the X-API-Key header.",
+    "version": "1.0.0",
+    "contact": {
+      "name": "InfinityXOneSystems",
+      "url": "https://github.com/InfinityXOneSystems/Xps-scraper"
+    },
+    "license": {
+      "name": "MIT"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://your-backend.railway.app",
+      "description": "Production (Railway Cloud)"
+    },
+    {
+      "url": "http://localhost:3001",
+      "description": "Local development"
+    }
+  ],
+  "security": [
+    {
+      "ApiKeyAuth": []
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key",
+        "description": "Static API key. Set API_KEY in backend environment."
+      },
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "JWT bearer token. Sign with JWT_SECRET."
+      }
+    },
+    "schemas": {
+      "HealthResponse": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string", "example": "ok" },
+          "service": { "type": "string", "example": "xps-scraper-backend" },
+          "version": { "type": "string", "example": "1.0.0" },
+          "timestamp": { "type": "string", "format": "date-time" }
+        }
+      },
+      "ScrapeRequest": {
+        "type": "object",
+        "required": ["url"],
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "The URL to scrape",
+            "example": "https://example.com"
+          },
+          "selectors": {
+            "type": "object",
+            "description": "CSS selectors to extract specific elements",
+            "example": { "title": "h1", "price": ".price" }
+          },
+          "extractText": {
+            "type": "boolean",
+            "default": true,
+            "description": "Extract visible text content"
+          },
+          "extractLinks": {
+            "type": "boolean",
+            "default": false,
+            "description": "Extract all hyperlinks"
+          },
+          "extractImages": {
+            "type": "boolean",
+            "default": false,
+            "description": "Extract image URLs"
+          }
+        }
+      },
+      "ScrapeResult": {
+        "type": "object",
+        "properties": {
+          "url": { "type": "string" },
+          "title": { "type": "string" },
+          "text": { "type": "string", "description": "Extracted text content" },
+          "links": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "images": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "selectors": {
+            "type": "object",
+            "additionalProperties": { "type": "string" }
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "statusCode": { "type": "integer" },
+              "contentType": { "type": "string" },
+              "scrapedAt": { "type": "string", "format": "date-time" }
+            }
+          }
+        }
+      },
+      "BulkScrapeRequest": {
+        "type": "object",
+        "required": ["urls"],
+        "properties": {
+          "urls": {
+            "type": "array",
+            "items": { "type": "string", "format": "uri" },
+            "maxItems": 50,
+            "description": "List of URLs to scrape in bulk"
+          },
+          "extractText": { "type": "boolean", "default": true },
+          "extractLinks": { "type": "boolean", "default": false }
+        }
+      },
+      "CrawlRequest": {
+        "type": "object",
+        "required": ["url"],
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "The root URL to start crawling from"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 500,
+            "default": 10,
+            "description": "Maximum number of pages to crawl"
+          },
+          "maxDepth": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10,
+            "default": 3,
+            "description": "Maximum crawl depth from the root URL"
+          },
+          "includePaths": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "URL path patterns to include (glob)"
+          },
+          "excludePaths": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "URL path patterns to exclude (glob)"
+          },
+          "allowExternalLinks": {
+            "type": "boolean",
+            "default": false,
+            "description": "Whether to follow links to external domains"
+          }
+        }
+      },
+      "CrawlResult": {
+        "type": "object",
+        "properties": {
+          "jobId": { "type": "string", "description": "Crawl job ID for polling status" },
+          "status": {
+            "type": "string",
+            "enum": ["queued", "running", "completed", "failed"]
+          },
+          "pagesFound": { "type": "integer" },
+          "data": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/ScrapeResult" }
+          }
+        }
+      },
+      "KeyHarvestRequest": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "URL to harvest keys from (mutually exclusive with content)"
+          },
+          "content": {
+            "type": "string",
+            "description": "Raw text/HTML content to scan for keys (mutually exclusive with url)"
+          },
+          "keyTypes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["api_key", "jwt", "aws", "stripe", "github", "oauth", "bearer", "generic_secret"]
+            },
+            "description": "Filter to specific key types (default: all types)"
+          }
+        }
+      },
+      "HarvestedKey": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "type": { "type": "string", "description": "Key type (e.g., api_key, jwt)" },
+          "value": { "type": "string", "description": "Masked key value (e.g., sk-****...****)" },
+          "source": { "type": "string", "description": "Source URL or content snippet" },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Confidence score (0–1)"
+          },
+          "discoveredAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "KeyHarvestResult": {
+        "type": "object",
+        "properties": {
+          "keys": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/HarvestedKey" }
+          },
+          "total": { "type": "integer" },
+          "source": { "type": "string" }
+        }
+      },
+      "EnrichRequest": {
+        "type": "object",
+        "required": ["query"],
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Research query or topic to investigate"
+          },
+          "urls": {
+            "type": "array",
+            "items": { "type": "string", "format": "uri" },
+            "description": "Optional seed URLs to start research from"
+          },
+          "maxDepth": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5,
+            "default": 2,
+            "description": "Research depth (number of follow-up queries)"
+          },
+          "model": {
+            "type": "string",
+            "description": "LLM model to use (e.g., llama-3.3-70b-versatile)",
+            "default": "llama-3.3-70b-versatile"
+          }
+        }
+      },
+      "EnrichResult": {
+        "type": "object",
+        "properties": {
+          "summary": { "type": "string", "description": "AI-generated research summary" },
+          "facts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "fact": { "type": "string" },
+                "source": { "type": "string" },
+                "confidence": { "type": "number" }
+              }
+            }
+          },
+          "sources": {
+            "type": "array",
+            "items": { "type": "string", "format": "uri" }
+          },
+          "model": { "type": "string" },
+          "tokensUsed": { "type": "integer" }
+        }
+      },
+      "ExportRequest": {
+        "type": "object",
+        "properties": {
+          "resource": {
+            "type": "string",
+            "enum": ["keys", "scrapes", "leads", "crawls", "research"],
+            "description": "Resource type to export"
+          },
+          "format": {
+            "type": "string",
+            "enum": ["json", "csv", "ndjson"],
+            "default": "json"
+          },
+          "filters": {
+            "type": "object",
+            "description": "Optional filters (e.g., date range, key type)",
+            "additionalProperties": true
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000,
+            "default": 100
+          }
+        }
+      },
+      "ChatMessage": {
+        "type": "object",
+        "required": ["message"],
+        "properties": {
+          "message": {
+            "type": "string",
+            "description": "User message or command for the AI agent"
+          },
+          "conversationId": {
+            "type": "string",
+            "description": "Conversation ID to continue an existing conversation"
+          },
+          "context": {
+            "type": "object",
+            "description": "Optional context (e.g., URLs, data) to pass to the agent",
+            "additionalProperties": true
+          }
+        }
+      },
+      "ChatResponse": {
+        "type": "object",
+        "properties": {
+          "reply": { "type": "string", "description": "AI agent response" },
+          "conversationId": { "type": "string" },
+          "model": { "type": "string" },
+          "actions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": { "type": "string" },
+                "result": {}
+              }
+            }
+          }
+        }
+      },
+      "WorkflowRequest": {
+        "type": "object",
+        "required": ["name", "nodes"],
+        "properties": {
+          "name": { "type": "string", "description": "Workflow name" },
+          "nodes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["id", "type", "label"],
+              "properties": {
+                "id": { "type": "string" },
+                "type": {
+                  "type": "string",
+                  "enum": ["trigger", "crawl", "scrape", "harvest", "research", "filter", "transform", "export", "llm", "webhook"]
+                },
+                "label": { "type": "string" },
+                "config": { "type": "object", "additionalProperties": true }
+              }
+            }
+          },
+          "edges": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "from": { "type": "string" },
+                "to": { "type": "string" }
+              }
+            }
+          }
+        }
+      },
+      "WorkflowStatus": {
+        "type": "object",
+        "properties": {
+          "runId": { "type": "string" },
+          "workflowId": { "type": "string" },
+          "status": {
+            "type": "string",
+            "enum": ["pending", "running", "completed", "failed"]
+          },
+          "startedAt": { "type": "string", "format": "date-time" },
+          "completedAt": { "type": "string", "format": "date-time" },
+          "log": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "output": {}
+        }
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": { "type": "string" },
+          "message": { "type": "string" }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "operationId": "getHealth",
+        "summary": "Health check",
+        "description": "Returns the health status of the XPS backend API.",
+        "tags": ["System"],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Service is healthy",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HealthResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/scrape": {
+      "post": {
+        "operationId": "scrapeUrl",
+        "summary": "Scrape a single URL",
+        "description": "Fetches and extracts content from a single web page. Supports text, links, images, and CSS selector extraction.",
+        "tags": ["Scrape"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ScrapeRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Scrape result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "result": { "$ref": "#/components/schemas/ScrapeResult" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Validation error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "401": { "description": "Unauthorized" }
+        }
+      }
+    },
+    "/api/scrape/bulk": {
+      "post": {
+        "operationId": "bulkScrape",
+        "summary": "Scrape multiple URLs",
+        "description": "Fetches and extracts content from up to 50 URLs in parallel.",
+        "tags": ["Scrape"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/BulkScrapeRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Bulk scrape results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "results": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/ScrapeResult" }
+                    },
+                    "total": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/crawl/crawl": {
+      "post": {
+        "operationId": "crawlSite",
+        "summary": "Deep-crawl a website",
+        "description": "Recursively crawls a website via Firecrawl, following links up to the configured depth and page limit.",
+        "tags": ["Crawl"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CrawlRequest" }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Crawl job started",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/CrawlResult" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/crawl/status/{jobId}": {
+      "get": {
+        "operationId": "getCrawlStatus",
+        "summary": "Get crawl job status",
+        "description": "Polls the status of a running or completed crawl job.",
+        "tags": ["Crawl"],
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Crawl job status",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/CrawlResult" }
+              }
+            }
+          },
+          "404": { "description": "Job not found" }
+        }
+      }
+    },
+    "/api/keys/harvest": {
+      "post": {
+        "operationId": "harvestKeys",
+        "summary": "Harvest API keys and secrets",
+        "description": "Scans a URL or raw content for exposed API keys, JWTs, AWS credentials, tokens, and other secrets using regex-based detection. All values are masked in the response.",
+        "tags": ["Keys"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/KeyHarvestRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Harvested keys (masked)",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/KeyHarvestResult" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/keys": {
+      "get": {
+        "operationId": "listKeys",
+        "summary": "List harvested keys",
+        "description": "Returns all harvested keys (masked). Supports pagination and filtering by type.",
+        "tags": ["Keys"],
+        "parameters": [
+          {
+            "name": "type",
+            "in": "query",
+            "schema": { "type": "string" },
+            "description": "Filter by key type"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": { "type": "integer", "default": 50 }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": { "type": "integer", "default": 0 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of harvested keys",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "keys": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/HarvestedKey" }
+                    },
+                    "total": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/keys/export": {
+      "get": {
+        "operationId": "exportKeys",
+        "summary": "Export harvested keys",
+        "description": "Exports all harvested keys in JSON or CSV format. All values are masked. Requires admin role.",
+        "tags": ["Keys"],
+        "parameters": [
+          {
+            "name": "format",
+            "in": "query",
+            "schema": { "type": "string", "enum": ["json", "csv"], "default": "json" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Exported keys file",
+            "content": {
+              "application/json": {},
+              "text/csv": {}
+            }
+          }
+        }
+      }
+    },
+    "/api/orchestrator/run": {
+      "post": {
+        "operationId": "runWorkflow",
+        "summary": "Run a multi-step agent workflow",
+        "description": "Executes a directed workflow graph of agent nodes (crawl, scrape, harvest, research, transform, export). Returns a run ID for polling status.",
+        "tags": ["Orchestrator"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/WorkflowRequest" }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Workflow started",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "runId": { "type": "string" },
+                    "status": { "type": "string", "example": "running" },
+                    "message": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/orchestrator/status/{runId}": {
+      "get": {
+        "operationId": "getWorkflowStatus",
+        "summary": "Get workflow run status",
+        "description": "Polls the status of an orchestrator workflow run.",
+        "tags": ["Orchestrator"],
+        "parameters": [
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Workflow status",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/WorkflowStatus" }
+              }
+            }
+          },
+          "404": { "description": "Run not found" }
+        }
+      }
+    },
+    "/api/agent/chat": {
+      "post": {
+        "operationId": "agentChat",
+        "summary": "Chat with the AI scraping agent",
+        "description": "Sends a natural language message to the XPS AI agent. The agent can autonomously plan and execute scraping, key harvesting, and research tasks.",
+        "tags": ["Agent"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ChatMessage" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Agent response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ChatResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/agent/conversation/{id}": {
+      "get": {
+        "operationId": "getConversation",
+        "summary": "Get conversation history",
+        "description": "Retrieves the full message history of a conversation.",
+        "tags": ["Agent"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Conversation history",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "conversationId": { "type": "string" },
+                    "messages": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "role": { "type": "string", "enum": ["user", "assistant"] },
+                          "content": { "type": "string" },
+                          "timestamp": { "type": "string", "format": "date-time" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/keys/{id}": {
+      "delete": {
+        "operationId": "deleteKey",
+        "summary": "Delete a harvested key",
+        "description": "Permanently deletes a harvested key record by ID.",
+        "tags": ["Keys"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Key deleted" },
+          "404": { "description": "Key not found" }
+        }
+      }
+    }
+  },
+  "tags": [
+    { "name": "System", "description": "Health and system information" },
+    { "name": "Scrape", "description": "Single and bulk URL scraping" },
+    { "name": "Crawl", "description": "Deep website crawling via Firecrawl" },
+    { "name": "Keys", "description": "API key and secret harvesting" },
+    { "name": "Orchestrator", "description": "Multi-step agent workflow orchestration" },
+    { "name": "Agent", "description": "Conversational AI scraping agent" }
+  ]
+}

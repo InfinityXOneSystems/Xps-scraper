@@ -1,0 +1,311 @@
+# =============================================================================
+# XPS Shadow Scraper — Full-Stack Integration Docker Compose
+# =============================================================================
+#
+# Uses the Compose Specification (no version field required for Docker Compose v2+).
+#
+# Prerequisites:
+#   bash scripts/setup-integration.sh   ← clones all templates first
+#
+# Usage:
+#   docker compose -f docker-compose.full-stack.yml up --build
+#
+# Service map:
+#   backend          → http://localhost:3001  (XPS API + orchestrator)
+#   frontend         → http://localhost:3000  (React UI)
+#   open-claw        → http://localhost:3003  (asset extraction)
+#   open-deep-research → http://localhost:3004 (LLM fact extraction)
+#   postgres         → localhost:5432
+#   redis            → localhost:6379
+#   n8n              → http://localhost:5678  (workflow automation)
+#   ollama           → http://localhost:11434 (local LLM)
+#   ollama-pull      → one-time model setup
+#
+# LLM Provider:
+#   Default: Groq Cloud (set GROQ_API_KEY)
+#   Fallback: Ollama local (set LLM_API_URL=http://ollama:11434/v1)
+# =============================================================================
+
+services:
+  # ─── PostgreSQL Database ────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: xps-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-xps}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-xpspassword}
+      POSTGRES_DB: ${POSTGRES_DB:-xps_scraper}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-xps}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - xps-network
+
+  # ─── Redis Cache & Queue ────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: xps-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - xps-network
+
+  # ─── n8n Workflow Automation ────────────────────────────────────────────────
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: xps-n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      N8N_HOST: ${N8N_HOST:-localhost}
+      N8N_PORT: 5678
+      N8N_PROTOCOL: http
+      WEBHOOK_URL: ${N8N_WEBHOOK_URL:-http://localhost:5678}
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_HOST: postgres
+      DB_POSTGRESDB_PORT: 5432
+      DB_POSTGRESDB_DATABASE: ${POSTGRES_DB:-xps_scraper}
+      DB_POSTGRESDB_USER: ${POSTGRES_USER:-xps}
+      DB_POSTGRESDB_PASSWORD: ${POSTGRES_PASSWORD:-xpspassword}
+      N8N_BASIC_AUTH_ACTIVE: ${N8N_BASIC_AUTH_ACTIVE:-true}
+      N8N_BASIC_AUTH_USER: ${N8N_BASIC_AUTH_USER:-admin}
+      N8N_BASIC_AUTH_PASSWORD: ${N8N_BASIC_AUTH_PASSWORD:-n8npassword}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - n8n-data:/home/node/.n8n
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:5678/healthz || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - xps-network
+
+  # ─── XPS Backend (Core API + Orchestrator) ─────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: xps-scraper-backend
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: 3001
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      # ── Database ──
+      DATABASE_URL: postgresql://${POSTGRES_USER:-xps}:${POSTGRES_PASSWORD:-xpspassword}@postgres:5432/${POSTGRES_DB:-xps_scraper}
+      # ── Cache ──
+      REDIS_URL: redis://redis:6379
+      # ── n8n ──
+      N8N_URL: http://n8n:5678
+      N8N_API_KEY: ${N8N_API_KEY:-}
+      # ── LLM (Groq by default; swap URL for Ollama) ──
+      LLM_API_URL: ${LLM_API_URL:-https://api.groq.com/openai/v1}
+      LLM_API_KEY: ${GROQ_API_KEY:-${LLM_API_KEY:-}}
+      LLM_MODEL: ${LLM_MODEL:-llama-3.3-70b-versatile}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # ── Auth ──
+      API_KEY: ${API_KEY:-}
+      JWT_SECRET: ${JWT_SECRET:-}
+      # ── Rate limiting ──
+      RATE_LIMIT_WINDOW_MS: ${RATE_LIMIT_WINDOW_MS:-900000}
+      RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-100}
+      # ── External services ──
+      FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY:-}
+      STEEL_API_KEY: ${STEEL_API_KEY:-}
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-}
+      # ── Open Claw adapter ──
+      OPEN_CLAW_URL: http://open-claw:3003
+      # ── Deep Research adapter ──
+      DEEP_RESEARCH_URL: http://open-deep-research:3004
+      # ── GitHub App (XPS Orchestrator) ──
+      GITHUB_APP_ID: ${GITHUB_APP_ID:-}
+      GITHUB_APP_PRIVATE_KEY: ${GITHUB_APP_PRIVATE_KEY:-}
+      GITHUB_APP_INSTALLATION_ID: ${GITHUB_APP_INSTALLATION_ID:-}
+      GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-}
+      # ── XPS Intelligence ──
+      XPS_INTELLIGENCE_API_URL: ${XPS_INTELLIGENCE_API_URL:-}
+      XPS_INTELLIGENCE_API_KEY: ${XPS_INTELLIGENCE_API_KEY:-}
+      XPS_LEAD_INTELLIGENCE_URL: ${XPS_LEAD_INTELLIGENCE_URL:-}
+      XPS_LEAD_INTELLIGENCE_KEY: ${XPS_LEAD_INTELLIGENCE_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - xps-network
+
+  # ─── Frontend (React Chat + Agent UI) ──────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: xps-scraper-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    environment:
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:3001/api}
+      VITE_APP_TITLE: ${VITE_APP_TITLE:-XPS Shadow Scraper}
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:80"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - xps-network
+
+  # ─── Open Claw (Asset Extraction & Enrichment) ─────────────────────────────
+  # Cloned by scripts/setup-integration.sh → templates/open-claw/
+  # Gracefully skipped if templates/open-claw/package.json is absent
+  open-claw:
+    build:
+      context: ./templates/open-claw
+      dockerfile: Dockerfile
+    container_name: xps-open-claw
+    restart: unless-stopped
+    ports:
+      - "3003:3003"
+    environment:
+      PORT: 3003
+      NODE_ENV: ${NODE_ENV:-development}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-xps}:${POSTGRES_PASSWORD:-xpspassword}@postgres:5432/${POSTGRES_DB:-xps_scraper}
+      REDIS_URL: redis://redis:6379
+      FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY:-}
+      LLM_API_URL: ${LLM_API_URL:-https://api.groq.com/openai/v1}
+      LLM_API_KEY: ${GROQ_API_KEY:-${LLM_API_KEY:-}}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3003/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - xps-network
+    profiles:
+      - templates
+
+  # ─── Open Deep Research (LLM Fact Extraction) ──────────────────────────────
+  # Cloned by scripts/setup-integration.sh → templates/open-deep-research/
+  open-deep-research:
+    build:
+      context: ./templates/open-deep-research
+      dockerfile: Dockerfile
+    container_name: xps-open-deep-research
+    restart: unless-stopped
+    ports:
+      - "3004:3004"
+    environment:
+      PORT: 3004
+      NODE_ENV: ${NODE_ENV:-development}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY:-}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-xps}:${POSTGRES_PASSWORD:-xpspassword}@postgres:5432/${POSTGRES_DB:-xps_scraper}
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3004/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - xps-network
+    profiles:
+      - templates
+
+  # ─── Ollama (Local LLM — optional) ─────────────────────────────────────────
+  # Set LLM_API_URL=http://ollama:11434/v1 in .env to use instead of Groq
+  ollama:
+    image: ollama/ollama:latest
+    container_name: xps-ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    environment:
+      OLLAMA_HOST: "0.0.0.0"
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - xps-network
+    profiles:
+      - ollama
+
+  # ─── Ollama Model Puller (runs once) ────────────────────────────────────────
+  ollama-pull:
+    image: ollama/ollama:latest
+    container_name: xps-ollama-pull
+    restart: "no"
+    depends_on:
+      ollama:
+        condition: service_healthy
+    entrypoint: ["ollama", "pull", "${LLM_MODEL:-llama3.2}"]
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    networks:
+      - xps-network
+    profiles:
+      - ollama
+
+volumes:
+  postgres-data:
+  redis-data:
+  n8n-data:
+  ollama-data:
+
+networks:
+  xps-network:
+    driver: bridge
