@@ -26,10 +26,10 @@ export default defineConfig({
       output: {
         manualChunks(id: string) {
           if (id.includes('node_modules')) {
-            if (id.includes('react-dom') || id.includes('react/')) return 'vendor';
-            if (id.includes('react-markdown') || id.includes('remark-gfm')) return 'markdown';
-            if (id.includes('react-router-dom')) return 'router';
-            if (id.includes('@dnd-kit')) return 'dnd';
+            if (id.includes('/react-dom/') || id.includes('/react/')) return 'vendor';
+            if (id.includes('/react-markdown/') || id.includes('/remark-gfm/')) return 'markdown';
+            if (id.includes('/react-router-dom/')) return 'router';
+            if (id.includes('/@dnd-kit/')) return 'dnd';
           }
           return undefined;
         },

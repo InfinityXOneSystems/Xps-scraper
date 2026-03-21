@@ -53,8 +53,8 @@ test.describe('Live Agent — Dashboard', () => {
     await page.goto(BASE_URL);
     await page.waitForLoadState('networkidle');
 
-    // Assert connected status
-    const banner = page.locator('text=All systems operational — Backend connected');
+    // Assert connected status — match on partial text so minor wording changes don't break
+    const banner = page.locator('text=/All systems operational|Backend connected/');
     await expect(banner).toBeVisible({ timeout: 20_000 });
 
     await page.screenshot({

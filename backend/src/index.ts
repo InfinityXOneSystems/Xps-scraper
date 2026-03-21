@@ -60,7 +60,11 @@ app.get('/health/services', async (_req: Request, res: Response) => {
       llm: {
         configured: llmConfigured,
         model: config.LLM_MODEL,
-        provider: config.LLM_API_URL.includes('groq') ? 'groq' : 'openai',
+        provider: config.LLM_API_URL.includes('ollama')
+          ? 'ollama'
+          : config.LLM_API_URL.includes('groq')
+          ? 'groq'
+          : 'openai',
       },
       playwright: { configured: true },
       firecrawl: { configured: !!config.FIRECRAWL_API_KEY },

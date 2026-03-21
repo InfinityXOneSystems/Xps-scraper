@@ -21,7 +21,7 @@ export default defineConfig({
         ...devices['Desktop Chrome'],
         // Run headful so the agent physically sees the browser; honour
         // PWHEADFUL env var so CI can override to headless when needed.
-        headless: process.env['PWHEADFUL'] !== 'true' && process.env['CI'] === 'true',
+        headless: process.env['PWHEADFUL'] === 'true' ? false : process.env['CI'] === 'true',
         viewport: { width: 1280, height: 900 },
         screenshot: 'on',
         video: 'on',
