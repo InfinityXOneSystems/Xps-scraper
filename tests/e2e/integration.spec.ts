@@ -43,6 +43,18 @@ test.describe('Backend Health & API Availability', () => {
     const res = await request.get(`${BACKEND_URL}/api/nonexistent-route-xyz`);
     expect(res.status()).toBe(404);
   });
+
+  test('GET /health/services returns service diagnostics', async ({ request }) => {
+    const res = await request.get(`${BACKEND_URL}/health/services`);
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    expect(body.status).toBe('ok');
+    expect(body).toHaveProperty('services');
+    expect(body.services).toHaveProperty('api');
+    expect(body.services).toHaveProperty('database');
+    expect(body.services).toHaveProperty('redis');
+    expect(body.services).toHaveProperty('llm');
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -141,7 +153,9 @@ test.describe('Scraping API', () => {
     expect([200, 401, 403]).toContain(res.status());
     if (res.status() === 200) {
       const body = await res.json();
-      expect(body).toHaveProperty('result');
+      // Route returns raw ScrapeResult (url, title, text, scrapedAt, ...)
+      expect(body).toHaveProperty('url');
+      expect(body).toHaveProperty('scrapedAt');
     }
   });
 

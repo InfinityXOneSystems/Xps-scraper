@@ -77,6 +77,38 @@ export async function healthCheck(): Promise<{ status: string }> {
   return data;
 }
 
+export interface ServiceHealth {
+  configured: boolean;
+  connected?: boolean;
+  model?: string;
+  provider?: string;
+}
+
+export interface ServicesHealthResponse {
+  status: string;
+  timestamp: string;
+  services: {
+    api: ServiceHealth;
+    database: ServiceHealth;
+    redis: ServiceHealth;
+    llm: ServiceHealth;
+    playwright: ServiceHealth;
+    firecrawl: ServiceHealth;
+    twilio: ServiceHealth;
+    stripe: ServiceHealth;
+    hubspot: ServiceHealth;
+  };
+}
+
+export async function getServicesHealth(): Promise<ServicesHealthResponse> {
+  const { data } = await api.get<ServicesHealthResponse>('/health/services', {
+    baseURL: import.meta.env.VITE_API_URL
+      ? import.meta.env.VITE_API_URL.replace(/\/api$/, '')
+      : '',
+  });
+  return data;
+}
+
 // CRM
 export async function getContacts(): Promise<Contact[]> {
   const { data } = await api.get<{ contacts: Contact[] }>('/crm/contacts');

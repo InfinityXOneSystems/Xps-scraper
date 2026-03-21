@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { getContacts, getLeads, getKeys, healthCheck } from '../api';
+import { getContacts, getLeads, getKeys, healthCheck, getServicesHealth } from '../api';
+import type { ServicesHealthResponse } from '../api';
 import type { Tab } from '../types';
 
 interface DashboardProps {
@@ -30,6 +31,7 @@ export default function Dashboard({ onTabChange }: DashboardProps) {
   ]);
   const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [health, setHealth] = useState<'ok' | 'error' | 'loading'>('loading');
+  const [services, setServices] = useState<ServicesHealthResponse['services'] | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -38,6 +40,14 @@ export default function Dashboard({ onTabChange }: DashboardProps) {
         setHealth('ok');
       } catch {
         setHealth('error');
+      }
+
+      // Load live service statuses
+      try {
+        const svcHealth = await getServicesHealth();
+        setServices(svcHealth.services);
+      } catch {
+        // Services health non-critical; leave as null
       }
 
       const results = await Promise.allSettled([
@@ -177,13 +187,19 @@ export default function Dashboard({ onTabChange }: DashboardProps) {
         <h2 className="text-sm font-semibold text-[#888] uppercase tracking-wider mb-4">System Health</h2>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {[
-            { name: 'API Backend', status: health === 'ok' },
-            { name: 'LLM Service', status: false },
-            { name: 'Scraper Engine', status: health === 'ok' },
-            { name: 'Database', status: false },
+            { name: 'API Backend', status: health === 'ok', loading: health === 'loading' },
+            { name: 'LLM Service', status: !!services?.llm?.configured, loading: !services },
+            { name: 'Scraper Engine', status: health === 'ok', loading: health === 'loading' },
+            { name: 'Database', status: !!services?.database?.connected, loading: !services },
+            { name: 'Redis Cache', status: !!services?.redis?.connected, loading: !services },
+            { name: 'Firecrawl', status: !!services?.firecrawl?.configured, loading: !services },
+            { name: 'Twilio SMS', status: !!services?.twilio?.configured, loading: !services },
+            { name: 'Stripe Payments', status: !!services?.stripe?.configured, loading: !services },
           ].map((s) => (
             <div key={s.name} className="flex items-center gap-2">
-              <span className={`w-2 h-2 rounded-full flex-shrink-0 ${s.status ? 'bg-green-500' : 'bg-[#333]'}`} />
+              <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                s.loading ? 'bg-yellow-600 animate-pulse' : s.status ? 'bg-green-500' : 'bg-[#333]'
+              }`} />
               <span className="text-xs text-[#888]">{s.name}</span>
             </div>
           ))}

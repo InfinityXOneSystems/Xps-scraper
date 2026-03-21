@@ -13,6 +13,20 @@ export default defineConfig({
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
+      testIgnore: ['**/headful-agent.spec.ts'],
+    },
+    {
+      name: 'live-agent',
+      use: {
+        ...devices['Desktop Chrome'],
+        // Run headful so the agent physically sees the browser; honour
+        // PWHEADFUL env var so CI can override to headless when needed.
+        headless: process.env['PWHEADFUL'] !== 'true' && process.env['CI'] === 'true',
+        viewport: { width: 1280, height: 900 },
+        screenshot: 'on',
+        video: 'on',
+      },
+      testMatch: ['**/headful-agent.spec.ts'],
     },
   ],
   webServer: [
