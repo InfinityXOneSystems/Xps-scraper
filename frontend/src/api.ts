@@ -69,12 +69,16 @@ export async function exportKeys(format: 'json' | 'csv'): Promise<string> {
 }
 
 export async function healthCheck(): Promise<{ status: string }> {
-  const { data } = await api.get<{ status: string }>('/health', {
+  const res = await api.get<{ status: string }>('/health', {
     baseURL: import.meta.env.VITE_API_URL
       ? import.meta.env.VITE_API_URL.replace(/\/api$/, '')
       : '',
+    // Accept 200 (healthy) and 429 (rate-limited) — both mean the backend is running
+    validateStatus: (s) => s === 200 || s === 429,
   });
-  return data;
+  // 429 = rate-limited but backend is reachable → treat as connected
+  if (res.status === 429) return { status: 'ok' };
+  return res.data;
 }
 
 // CRM
