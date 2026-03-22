@@ -1,0 +1,325 @@
+name: 🛡️ Recursive Self-Healing CI
+
+# =============================================================================
+# XPS Shadow Scraper — Recursive Self-Healing CI Workflow
+#
+# Enforces a double-pass stability gate on every pull request:
+#   1. Runs the full build + test suite (backend unit tests, frontend build,
+#      Playwright E2E) against the PR branch.
+#   2. On failure, invokes scripts/coding-agent-autofix.sh to repair
+#      code/test issues, commits and pushes the fix to the PR branch.
+#   3. Retries recursively until two consecutive passes are achieved.
+#   4. If 2 consecutive passes are reached, the PR is scheduled for
+#      auto-merge (squash strategy).
+#   5. If the loop exceeds LOOP_MAX iterations (default: 10), the workflow
+#      fails to prevent infinite loops.
+#
+# Required permissions:
+#   contents: write     — push fix commits back to the PR branch
+#   pull-requests: write — enable auto-merge
+#
+# Optional secrets (used by the auto-fix agent and E2E tests):
+#   GROQ_API_KEY         — LLM key forwarded to the autofix agent
+#   FIRECRAWL_API_KEY    — Firecrawl key for E2E scraping tests
+# =============================================================================
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  # Maximum number of fix-and-retry iterations before the workflow gives up.
+  # Override by setting a repository variable LOOP_MAX.
+  LOOP_MAX: "10"
+  NODE_VERSION: "20"
+
+jobs:
+  recursive-validation:
+    name: Recursive Validate & Auto-Fix
+    runs-on: ubuntu-latest
+    # Allow enough time for up to LOOP_MAX iterations including E2E each time.
+    timeout-minutes: 90
+
+    steps:
+      # ── 1. Checkout the PR branch with push permissions ──────────────────
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      # ── 2. Node.js toolchain ─────────────────────────────────────────────
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      # ── 3. Git identity for autofix commits ──────────────────────────────
+      - name: Configure Git identity
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      # ── 4. Dependency installation (cached across workflow reruns) ────────
+      - name: Cache npm packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.npm
+            ~/.cache/ms-playwright
+          key: npm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: npm-${{ runner.os }}-
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install backend dependencies
+        run: npm ci
+        working-directory: backend
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+
+      # ── 5. Playwright browser (Chromium) ─────────────────────────────────
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium --with-deps
+
+      # ── 6. Create directories used by tests ──────────────────────────────
+      - name: Prepare test output directories
+        run: mkdir -p tests/e2e/screenshots playwright-report test-results
+
+      # ── 7. Core recursive loop ────────────────────────────────────────────
+      #
+      # The loop runs inline in the workflow so that:
+      #   • State (PASS_COUNT, LOOP_NUM) persists across iterations.
+      #   • Services (backend / frontend) can be managed per iteration.
+      #   • Autofix commits are pushed before the next iteration re-runs.
+      #
+      - name: Recursive Validate & Auto-Fix Loop
+        id: recursive-loop
+        env:
+          # ── Runtime config for backend under test ────────────────────────
+          NODE_ENV: test
+          API_KEY: ""
+          JWT_SECRET: ""
+          PORT: "3001"
+          FRONTEND_URL: "http://localhost:3000"
+          DATABASE_URL: ""
+          REDIS_URL: ""
+          # ── Forwarded secrets (used by E2E and autofix agent) ─────────────
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # ── Loop parameters ───────────────────────────────────────────────
+          GITHUB_HEAD_REF: ${{ github.head_ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -uo pipefail
+
+          PASS_COUNT=0
+          LOOP_NUM=0
+          LOOP_MAX="${LOOP_MAX}"
+
+          # ── GITHUB_STEP_SUMMARY header ────────────────────────────────────
+          {
+            echo "## 🛡️ Recursive Self-Healing CI"
+            echo ""
+            echo "| Iteration | Phase | Result | Consecutive Passes |"
+            echo "|-----------|-------|--------|--------------------|"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # ── Helper: stop any running backend / frontend processes ─────────
+          stop_services() {
+            local pids_file="/tmp/xps-service-pids"
+            if [[ -f "$pids_file" ]]; then
+              while IFS= read -r pid; do
+                kill "$pid" 2>/dev/null || true
+              done < "$pids_file"
+              rm -f "$pids_file"
+            fi
+          }
+
+          # ── Helper: wait for an HTTP endpoint to become healthy ───────────
+          wait_for_http() {
+            local url="$1"
+            local max_attempts="${2:-30}"
+            local attempt=0
+            while [[ "$attempt" -lt "$max_attempts" ]]; do
+              if curl -sf "$url" > /dev/null 2>&1; then
+                return 0
+              fi
+              sleep 1
+              attempt=$((attempt + 1))
+            done
+            echo "⚠️  Timed out waiting for $url" >&2
+            return 1
+          }
+
+          # ── Helper: run the full build + test suite ───────────────────────
+          # Returns 0 on full pass, 1 on any failure.
+          # Writes all output to LOG_FILE (passed as $1).
+          run_full_suite() {
+            local log_file="$1"
+            local suite_result=0
+
+            echo "--- [1/5] Backend TypeScript type-check ---" | tee -a "$log_file"
+            if ! ( cd backend && npx tsc --noEmit ) 2>&1 | tee -a "$log_file"; then
+              echo "::warning::TypeScript type-check failed" | tee -a "$log_file"
+              suite_result=1
+            fi
+
+            echo "--- [2/5] Backend unit tests (Jest) ---" | tee -a "$log_file"
+            if ! ( cd backend && npm test ) 2>&1 | tee -a "$log_file"; then
+              echo "::warning::Backend unit tests failed" | tee -a "$log_file"
+              suite_result=1
+            fi
+
+            echo "--- [3/5] Backend build (TypeScript → dist/) ---" | tee -a "$log_file"
+            if ! ( cd backend && npm run build ) 2>&1 | tee -a "$log_file"; then
+              echo "::warning::Backend build failed" | tee -a "$log_file"
+              suite_result=1
+            fi
+
+            echo "--- [4/5] Frontend build (Vite) ---" | tee -a "$log_file"
+            if ! ( cd frontend && VITE_API_URL=http://localhost:3001/api \
+                    VITE_APP_TITLE="XPS Shadow Scraper" \
+                    npm run build ) 2>&1 | tee -a "$log_file"; then
+              echo "::warning::Frontend build failed" | tee -a "$log_file"
+              suite_result=1
+            fi
+
+            # Only run E2E if the build stages all passed
+            if [[ "$suite_result" -eq 0 ]]; then
+              echo "--- [5/5] Playwright E2E tests ---" | tee -a "$log_file"
+
+              # Start backend
+              ( cd backend && NODE_ENV=test \
+                  DATABASE_URL="" REDIS_URL="" \
+                  node dist/index.js ) >> "$log_file" 2>&1 &
+              BACKEND_PID=$!
+
+              # Start frontend dev server
+              ( cd frontend && VITE_API_URL=http://localhost:3001/api \
+                  npx vite --port 3000 ) >> "$log_file" 2>&1 &
+              FRONTEND_PID=$!
+
+              echo "$BACKEND_PID"  > /tmp/xps-service-pids
+              echo "$FRONTEND_PID" >> /tmp/xps-service-pids
+
+              # Gate E2E behind service readiness
+              if wait_for_http "http://localhost:3001/health" 30; then
+                echo "✅ Backend healthy" | tee -a "$log_file"
+              else
+                echo "::warning::Backend did not become healthy; E2E skipped" | tee -a "$log_file"
+                stop_services
+                suite_result=1
+              fi
+
+              if [[ "$suite_result" -eq 0 ]]; then
+                wait_for_http "http://localhost:3000" 30 || true
+
+                if ! npx playwright test --project=chromium 2>&1 | tee -a "$log_file"; then
+                  echo "::warning::Playwright E2E tests failed" | tee -a "$log_file"
+                  suite_result=1
+                fi
+              fi
+
+              stop_services
+            else
+              echo "--- [5/5] Playwright E2E tests --- SKIPPED (build failed)" | tee -a "$log_file"
+            fi
+
+            return "$suite_result"
+          }
+
+          # ═══════════════════════════════════════════════════════════════════
+          # MAIN LOOP
+          # ═══════════════════════════════════════════════════════════════════
+          while [[ "$PASS_COUNT" -lt 2 ]] && [[ "$LOOP_NUM" -lt "$LOOP_MAX" ]]; do
+            LOOP_NUM=$((LOOP_NUM + 1))
+
+            echo ""
+            echo "=== Iteration ${LOOP_NUM}/${LOOP_MAX} — consecutive passes: ${PASS_COUNT} ==="
+
+            LOG_FILE="/tmp/xps-suite-loop-${LOOP_NUM}.log"
+            : > "$LOG_FILE"
+
+            set +e
+            run_full_suite "$LOG_FILE"
+            SUITE_RESULT=$?
+            set -e
+
+            if [[ "$SUITE_RESULT" -eq 0 ]]; then
+              PASS_COUNT=$((PASS_COUNT + 1))
+              echo "✅ Iteration ${LOOP_NUM} PASSED — consecutive passes: ${PASS_COUNT}"
+              echo "| ${LOOP_NUM} | Full suite | ✅ PASS | ${PASS_COUNT} |" >> "$GITHUB_STEP_SUMMARY"
+            else
+              PASS_COUNT=0
+              echo "❌ Iteration ${LOOP_NUM} FAILED — invoking coding-agent autofix"
+              echo "| ${LOOP_NUM} | Full suite | ❌ FAIL | 0 (reset) |" >> "$GITHUB_STEP_SUMMARY"
+
+              # ── Invoke the coding agent autofix script ──────────────────
+              echo "::group::Coding-agent autofix (iteration ${LOOP_NUM})"
+              bash scripts/coding-agent-autofix.sh "$LOG_FILE" || true
+              echo "::endgroup::"
+
+              # ── Commit and push any repairs ──────────────────────────────
+              if ! git diff --quiet HEAD || ! git diff --cached --quiet; then
+                git add -A
+                git commit -m \
+                  "chore(autofix): recursive CI fix — iteration ${LOOP_NUM} [skip ci]"
+                git push origin "HEAD:${GITHUB_HEAD_REF}"
+                echo "📤 Fix committed and pushed (iteration ${LOOP_NUM})"
+                echo "| ${LOOP_NUM} | Autofix push | 📤 committed | — |" >> "$GITHUB_STEP_SUMMARY"
+              else
+                echo "⚠️  Autofix produced no file changes on iteration ${LOOP_NUM}"
+                echo "| ${LOOP_NUM} | Autofix push | ⚠️ no changes | — |" >> "$GITHUB_STEP_SUMMARY"
+              fi
+            fi
+          done
+
+          # ── Final outcome ────────────────────────────────────────────────
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          if [[ "$PASS_COUNT" -ge 2 ]]; then
+            echo "### ✅ Double-pass stability gate achieved" >> "$GITHUB_STEP_SUMMARY"
+            echo "Completed in **${LOOP_NUM}** iteration(s)." >> "$GITHUB_STEP_SUMMARY"
+            echo "VALIDATION_PASSED=true" >> "$GITHUB_ENV"
+          else
+            echo "### ❌ Stability gate not achieved" >> "$GITHUB_STEP_SUMMARY"
+            echo "Loop exhausted after **${LOOP_MAX}** iterations without 2 consecutive passes." \
+              >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::Recursive self-healing CI failed: 2 consecutive passes not achieved after ${LOOP_MAX} iterations."
+            exit 1
+          fi
+
+      # ── 8. Upload build/test artefacts for post-mortem inspection ─────────
+      - name: Upload loop logs and test artefacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: recursive-ci-artefacts
+          path: |
+            /tmp/xps-suite-loop-*.log
+            playwright-report/
+            tests/e2e/screenshots/
+            test-results/
+          retention-days: 14
+
+      # ── 9. Enable auto-merge (squash) once double-pass is confirmed ────────
+      - name: Enable Auto-Merge (squash)
+        if: env.VALIDATION_PASSED == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr merge "${{ github.event.pull_request.number }}" \
+            --auto \
+            --squash \
+            --repo "${{ github.repository }}"
+          echo "🔀 Auto-merge (squash) scheduled for PR #${{ github.event.pull_request.number }}"
