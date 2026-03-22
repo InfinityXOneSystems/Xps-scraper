@@ -99,6 +99,23 @@ jobs:
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
 
+      - name: Health-check deployed backend
+        if: env.RAILWAY_BACKEND_URL != ''
+        run: |
+          echo "Waiting for backend at $RAILWAY_BACKEND_URL/health ..."
+          for i in $(seq 1 24); do
+            STATUS=$(curl -sf "$RAILWAY_BACKEND_URL/health" | jq -r '.status' 2>/dev/null || echo "")
+            if [[ "$STATUS" == "ok" ]]; then
+              echo "✅ Backend healthy"
+              break
+            fi
+            echo "  Attempt ${i}/24 — retrying in 5s ..."
+            sleep 5
+          done
+        env:
+          RAILWAY_BACKEND_URL: ${{ secrets.RAILWAY_BACKEND_URL }}
+        continue-on-error: true
+
       - name: Post Deployment Summary
         run: |
           echo "## 🚀 Deployment Complete" >> $GITHUB_STEP_SUMMARY
@@ -109,3 +126,7 @@ jobs:
           echo "| Frontend | ✅ Deployed |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "🔗 Railway Dashboard: https://railway.app" >> $GITHUB_STEP_SUMMARY
+          echo "📦 Commit: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          if [[ -n "${{ secrets.RAILWAY_BACKEND_URL }}" ]]; then
+            echo "🌐 Backend: ${{ secrets.RAILWAY_BACKEND_URL }}" >> $GITHUB_STEP_SUMMARY
+          fi

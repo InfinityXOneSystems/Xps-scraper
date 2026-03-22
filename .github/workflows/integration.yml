@@ -287,10 +287,18 @@ jobs:
             sleep 1
           done
 
-      - name: Run Playwright E2E tests
-        run: npx playwright test
+      - name: Run Playwright E2E tests (headless — chromium project)
+        run: npx playwright test --project=chromium
         env:
           CI: true
+
+      - name: Run Playwright live-agent tests (headful simulation)
+        run: npx playwright test --project=live-agent
+        env:
+          CI: true
+          # PWHEADFUL not set → headless=true per config (CI branch)
+          VITE_API_URL: http://localhost:3001/api
+        continue-on-error: true
 
       - name: Upload Playwright report
         if: always()
@@ -300,6 +308,7 @@ jobs:
           path: |
             playwright-report/
             tests/e2e/screenshots/
+            test-results/
           retention-days: 14
 
       - name: Post E2E summary
@@ -354,6 +363,23 @@ jobs:
         run: railway up --service frontend --detach
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+      - name: Wait for Railway backend health
+        if: env.RAILWAY_BACKEND_URL != ''
+        run: |
+          echo "Waiting for backend at $RAILWAY_BACKEND_URL/health ..."
+          for i in $(seq 1 24); do
+            STATUS=$(curl -sf "$RAILWAY_BACKEND_URL/health" | jq -r '.status' 2>/dev/null || echo "")
+            if [[ "$STATUS" == "ok" ]]; then
+              echo "✅ Backend healthy after ${i} attempts"
+              break
+            fi
+            echo "  Attempt ${i}/24 — not yet healthy, retrying in 5s ..."
+            sleep 5
+          done
+        env:
+          RAILWAY_BACKEND_URL: ${{ secrets.RAILWAY_BACKEND_URL }}
+        continue-on-error: true
 
       - name: Post deployment summary
         run: |

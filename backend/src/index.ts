@@ -4,6 +4,8 @@ import cors from 'cors';
 import { config } from './config';
 import { rateLimiter } from './middleware/rateLimiter';
 import { authMiddleware } from './middleware/auth';
+import { databaseService } from './services/database';
+import { redisService } from './services/redis';
 import {
   scrapeRouter, agentRouter, keysRouter, crmRouter, leadsRouter,
   emailRouter, orchestratorRouter, smsRouter, paymentsRouter,
@@ -34,6 +36,42 @@ app.get('/health', (_req: Request, res: Response) => {
     service: 'xps-scraper-backend',
     version: '1.0.0',
     timestamp: new Date().toISOString(),
+  });
+});
+
+// ── Full diagnostics endpoint (public) ────────────────────────────────────────
+app.get('/health/services', async (_req: Request, res: Response) => {
+  const [dbPing, redisPing] = await Promise.all([
+    databaseService.isAvailable()
+      ? databaseService.query('SELECT 1').then(() => true).catch(() => false)
+      : Promise.resolve(false),
+    redisService.ping(),
+  ]);
+
+  const llmConfigured = !!(config.LLM_API_KEY || process.env['GROQ_API_KEY']);
+
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    services: {
+      api: { configured: true, connected: true },
+      database: { configured: databaseService.isAvailable(), connected: dbPing },
+      redis: { configured: redisService.isAvailable(), connected: redisPing },
+      llm: {
+        configured: llmConfigured,
+        model: config.LLM_MODEL,
+        provider: config.LLM_API_URL.includes('ollama')
+          ? 'ollama'
+          : config.LLM_API_URL.includes('groq')
+          ? 'groq'
+          : 'openai',
+      },
+      playwright: { configured: true },
+      firecrawl: { configured: !!config.FIRECRAWL_API_KEY },
+      twilio: { configured: !!(config.TWILIO_ACCOUNT_SID && config.TWILIO_AUTH_TOKEN) },
+      stripe: { configured: !!config.STRIPE_SECRET_KEY },
+      hubspot: { configured: !!config.HUBSPOT_ACCESS_TOKEN },
+    },
   });
 });
 
