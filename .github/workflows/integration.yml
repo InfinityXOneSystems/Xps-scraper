@@ -275,6 +275,9 @@ jobs:
           DATABASE_URL: ""
           REDIS_URL: ""
           NODE_ENV: development
+          # Raise the rate-limit ceiling so E2E tests never hit 429 in CI
+          RATE_LIMIT_MAX: "10000"
+          RATE_LIMIT_WINDOW_MS: "900000"
 
       - name: Start frontend (background)
         run: |
